@@ -21,10 +21,10 @@ for (const line of readFileSync(".env", "utf8").split("\n")) {
   if (m && m[1]) process.env[m[1]] = m[2];
 }
 
-const REGION = (process.env.CORTI_REGION || "eu").toLowerCase();
+const REGION = (process.env.CORTI_REGION || "dev-weu").toLowerCase();
 const SUFFIX = REGION === "dev-weu" ? "DEV_WEU" : REGION === "staging-eu" ? "STAGING_EU" : REGION.toUpperCase();
-const BASE = process.env[`AGENT_API_URL_${SUFFIX}`]?.replace(/\/$/, "");
-const AUTH = process.env[`AGENT_API_AUTH_URL_${SUFFIX}`];
+const BASE = process.env[`AGENT_API_URL_${SUFFIX}`]?.replace(/\/$/, "") || `https://api.${REGION}.corti.app`;
+const AUTH = process.env[`AGENT_API_AUTH_URL_${SUFFIX}`] || `https://auth.${REGION}.corti.app`;
 const CID = process.env[`AGENT_API_CLIENT_ID_${SUFFIX}`];
 const CSECRET = process.env[`AGENT_API_CLIENT_SECRET_${SUFFIX}`];
 const TENANT = process.env.CORTI_TENANT_NAME || "base";

@@ -81,11 +81,11 @@ function resolveCortiEnv(env: NodeJS.ProcessEnv = process.env): CortiEnv | null 
         }
       : null;
   }
-  const url = env[`AGENT_API_URL_${suffix}`];
-  const auth = env[`AGENT_API_AUTH_URL_${suffix}`];
+  const url = env[`AGENT_API_URL_${suffix}`] || `https://api.${region}.corti.app`;
+  const auth = env[`AGENT_API_AUTH_URL_${suffix}`] || `https://auth.${region}.corti.app`;
   const id = env[`AGENT_API_CLIENT_ID_${suffix}`];
   const secret = env[`AGENT_API_CLIENT_SECRET_${suffix}`];
-  if (!url || !auth || !id || !secret) return null;
+  if (!id || !secret) return null;
   return { apiBaseUrl: url, authBaseUrl: auth, clientId: id, clientSecret: secret, tenant: env.CORTI_TENANT_NAME || "base", region };
 }
 

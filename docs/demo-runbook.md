@@ -61,9 +61,9 @@ node scripts/live-test.mjs
 
 This does a full end-to-end check: auth → create a coding-expert agent → send a
 clinical note → report the prediction → clean up. **Status as of 2026-09-15:**
-auth and agent creation work; the message:send reaches the coding expert but
-the task is REJECTED with "account balance insufficient" — the `eu` tenant
-needs credits added. The wiring is correct; adding credits is the only blocker.
+- **dev-weu** — ✅ works end-to-end; the coding expert returns correct codes. **This is the active region** (`CORTI_REGION=dev-weu`).
+- **staging-eu** — ✅ also has credits.
+- **eu** — auth + agent creation work, but message:send is REJECTED ("account balance insufficient"). Avoid until credits are added.
 
 ### Smoke test (always works, no network)
 
