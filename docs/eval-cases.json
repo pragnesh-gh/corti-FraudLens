@@ -1,0 +1,120 @@
+{
+  "_meta": {
+    "purpose": "Ground-truth fraud cases for evaluating the medical-coding 'coding expert' agent and for driving the guided tour. Each case is detectable from note text alone.",
+    "fraud_types": ["upcoding", "unbundling", "phantom", "dx_inflation", "diagnosis_padding", "cloning"],
+    "billing_impact_mechanisms": ["fee_for_service", "risk_adjustment", "drg_weight", "rvu_based"],
+    "note": "See docs/eval-cases.md for the curated registry and docs/eval-cases-research.md for the research subagent's expanded set."
+  },
+  "cases": [
+    {
+      "case_id": "case_padding_002",
+      "fraud_type": "diagnosis_padding",
+      "billing_impact_mechanism": "risk_adjustment",
+      "note_text": "CC: Annual wellness visit.\n\nHistory: 68yo male presents for Medicare annual wellness visit. Reports feeling well overall. On lisinopril for blood pressure, well-controlled. Denies chest pain, dyspnea, cough, edema, or urinary symptoms. No recent hospitalizations.\n\nExam: BP 128/78, HR 70. Lungs clear bilaterally, no wheezes or crackles. Heart regular rate and rhythm. No peripheral edema. Extremities normal.\n\nAssessment/Plan:\n1. Essential hypertension, well-controlled - continue lisinopril.\n2. Medicare annual wellness visit completed, no new concerns.",
+      "correct_codes": [
+        { "code": "I10", "description": "Essential (primary) hypertension" },
+        { "code": "Z00.00", "description": "Encounter for general adult medical exam without abnormal findings" }
+      ],
+      "billed_codes": [
+        { "code": "I10", "description": "Essential (primary) hypertension", "fraudulent": false },
+        { "code": "Z00.00", "description": "Encounter for general adult medical exam without abnormal findings", "fraudulent": false },
+        {
+          "code": "N18.3",
+          "description": "Chronic kidney disease, stage 3 (moderate)",
+          "fraudulent": true,
+          "flag_reason": "No renal labs (creatinine/eGFR), no CKD history, no nephrology mention anywhere in note",
+          "fraud_mechanism": "diagnosis_padding",
+          "billing_impact_mechanism": "risk_adjustment",
+          "billing_impact_note": "N18.3 is an HCC (hierarchical condition category) code. In Medicare Advantage risk-adjusted payment, adding this code increases the patient's risk score and the plan's capitated payment, without any procedure or higher E/M level being billed."
+        }
+      ]
+    },
+    {
+      "case_id": "case_upcoding_001",
+      "fraud_type": "upcoding",
+      "billing_impact_mechanism": "fee_for_service",
+      "note_text": "CC: Follow-up for hypertension.\n\nHistory: 62yo male presents for routine BP check. Reports good adherence to amlodipine. Denies chest pain, dyspnea, palpitations, leg swelling, or headache. No recent ER visits or hospitalizations.\n\nExam: BP 132/84, HR 72, regular. Heart: regular rate and rhythm, no murmurs, no S3/S4. Lungs clear bilaterally. No peripheral edema. No JVD.\n\nAssessment/Plan:\n1. Essential hypertension, well-controlled - continue amlodipine, recheck in 6 months.",
+      "correct_codes": [
+        { "code": "I10", "description": "Essential (primary) hypertension" }
+      ],
+      "billed_codes": [
+        {
+          "code": "I11.9",
+          "description": "Hypertensive heart disease without heart failure",
+          "fraudulent": true,
+          "flag_reason": "No cardiac abnormality documented — exam explicitly notes no S3/S4, no murmurs, no JVD, no edema; nothing supports heart involvement",
+          "fraud_mechanism": "upcoding",
+          "billing_impact_mechanism": "fee_for_service",
+          "billing_impact_note": "I11.9 (hypertensive heart disease) carries a higher complexity than I10 (essential hypertension). In fee-for-service it upcodes the E/M medical decision-making to a higher-paying level and, as a chronic cardiac condition, can raise the patient's risk score."
+        }
+      ]
+    },
+    {
+      "case_id": "case_unbundling_003",
+      "fraud_type": "unbundling",
+      "billing_impact_mechanism": "fee_for_service",
+      "note_text": "CC: Pre-op cardiac clearance.\n\nHistory: 55yo female referred for ECG prior to elective cholecystectomy. Denies chest pain, palpitations, or dyspnea. Hypertension well-controlled on losartan.\n\nExam: BP 124/80, HR 68. Heart regular rate and rhythm, no murmurs. Lungs clear. No edema.\n\nAssessment/Plan: 12-lead ECG performed, normal sinus rhythm, no acute ischemic changes. Cleared for surgery. Continue losartan.",
+      "correct_codes": [
+        { "code": "93000", "description": "Electrocardiogram, complete, tracing and interpretation" },
+        { "code": "I10", "description": "Essential (primary) hypertension" }
+      ],
+      "billed_codes": [
+        { "code": "I10", "description": "Essential (primary) hypertension", "fraudulent": false },
+        { "code": "93000", "description": "Electrocardiogram, complete, tracing and interpretation", "fraudulent": false },
+        {
+          "code": "93005",
+          "description": "Electrocardiogram, tracing only (technical component)",
+          "fraudulent": true,
+          "flag_reason": "93005 is the technical component bundled into the complete ECG 93000 already billed; the note documents a single 12-lead ECG, not a separate tracing service",
+          "fraud_mechanism": "unbundling",
+          "billing_impact_mechanism": "fee_for_service",
+          "billing_impact_note": "Billing 93000 (complete ECG) and 93005 (its bundled technical component) separately — usually with a -59 modifier to bypass the NCCI edit — double-bills the technical component, collecting for one service twice."
+        }
+      ]
+    },
+    {
+      "case_id": "case_phantom_004",
+      "fraud_type": "phantom",
+      "billing_impact_mechanism": "fee_for_service",
+      "note_text": "CC: Cough, 1 week.\n\nHistory: 44yo male with productive cough, no fever, no dyspnea. Denies chest pain or palpitations. No smoking history.\n\nExam: BP 118/76, HR 74, afebrile. Lungs: few scattered rhonchi, no wheezes, no crackles. Heart regular. No edema.\n\nAssessment/Plan: Acute bronchitis. Symptomatic care, fluids, return if worsening. No cardiac workup indicated or performed.",
+      "correct_codes": [
+        { "code": "J20.9", "description": "Acute bronchitis, unspecified" }
+      ],
+      "billed_codes": [
+        { "code": "J20.9", "description": "Acute bronchitis, unspecified", "fraudulent": false },
+        {
+          "code": "93000",
+          "description": "Electrocardiogram, complete, tracing and interpretation",
+          "fraudulent": true,
+          "flag_reason": "The note documents an uncomplicated respiratory visit with no cardiac complaint and explicitly states no cardiac workup was performed; an ECG was never done",
+          "fraud_mechanism": "phantom",
+          "billing_impact_mechanism": "fee_for_service",
+          "billing_impact_note": "A service billed with no supporting documentation — the ECG (93000) was never rendered. The provider collects the full fee for a service the patient never received."
+        }
+      ]
+    },
+    {
+      "case_id": "case_cloning_005",
+      "fraud_type": "cloning",
+      "billing_impact_mechanism": "fee_for_service",
+      "note_text": "CC: Routine follow-up.\n\nHistory: 71yo male, reports doing well. Denies chest pain, dyspnea, palpitations, edema, or headache. No new complaints.\n\nExam: BP 126/82, HR 70. Heart regular rate and rhythm, no murmurs, no S3/S4. Lungs clear bilaterally. No peripheral edema. No JVD.\n\nAssessment/Plan: 1. Essential hypertension, well-controlled - continue amlodipine, recheck in 6 months.",
+      "_clone_note": "This note is verbatim-identical across several encounters for different patients. The detection signal is cross-encounter note similarity (cosine / hash match), not anything visible within a single note.",
+      "correct_codes": [
+        { "code": "I10", "description": "Essential (primary) hypertension" },
+        { "code": "99213", "description": "Office visit, established patient, low complexity" }
+      ],
+      "billed_codes": [
+        { "code": "I10", "description": "Essential (primary) hypertension", "fraudulent": false },
+        {
+          "code": "99214",
+          "description": "Office visit, established patient, high complexity",
+          "fraudulent": true,
+          "flag_reason": "The note is a verbatim clone of other encounters (identical history and exam), indicating boilerplate unedited from a template; and the note supports 99213, not 99214",
+          "fraud_mechanism": "cloning",
+          "billing_impact_mechanism": "fee_for_service",
+          "billing_impact_note": "Cloned notes let a provider bill the same higher-level E/M across many patients with no individualized documentation, compounding the overpayment per cloned encounter."
+        }
+      ]
+    }
+  ]
+}

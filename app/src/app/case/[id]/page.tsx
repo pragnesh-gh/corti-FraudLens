@@ -1,0 +1,299 @@
+"use client";
+
+import { use, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { getCase, getCaseResult, getProvider } from "@/lib/data";
+import { formatUSD, formatPct, formatDate, cn } from "@/lib/utils";
+import { Card, CardHeader, RiskBadge, FraudChip, IntentBadge } from "@/components/ui";
+import { FRAUD_META } from "@/lib/fraud-meta";
+import type { AgentCard, EvidenceSpan, Finding } from "@/lib/types";
+import { ArrowLeft, ChevronRight, Check, Loader2, Circle, Sparkles, DollarSign, FileText, ScanSearch, Gavel, FlaskConical, Receipt } from "lucide-react";
+
+const AGENT_ICONS: Record<string, typeof FileText> = {
+  facts: FileText,
+  coding: Sparkles,
+  grounding: ScanSearch,
+  verify: FlaskConical,
+  judgement: Gavel,
+  impact: Receipt,
+};
+
+export default function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const c = useMemo(() => getCase(id), [id]);
+  const result = useMemo(() => getCaseResult(id), [id]);
+  const provider = c ? getProvider(c.provider_id) : undefined;
+
+  // Streaming agent cards — reveal one at a time with realistic pacing.
+  const [visibleAgents, setVisibleAgents] = useState(0);
+  const [activeSpan, setActiveSpan] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!result) return;
+    setVisibleAgents(0);
+    let i = 0;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const reveal = () => {
+      if (i < result.agent_trace.length) {
+        setVisibleAgents(i + 1);
+        i++;
+        timers.push(setTimeout(reveal, result.agent_trace[i]?.duration_ms ?? 900));
+      }
+    };
+    timers.push(setTimeout(reveal, 400));
+    return () => timers.forEach(clearTimeout);
+  }, [result]);
+
+  if (!c || !result || !provider) {
+    return (
+      <div className="py-20 text-center text-[var(--muted)]">
+        Case not found. <Link href="/" className="text-[var(--accent)] underline">Back to queue</Link>
+      </div>
+    );
+  }
+
+  // Highlight a span in the note if it matches the active code.
+  function renderNote() {
+    if (!c || !result) return null;
+    // Merge evidence spans; highlight those whose code === activeSpan.
+    const spans = c.evidence_spans;
+    if (!activeSpan || spans.length === 0) return <p className="whitespace-pre-wrap leading-relaxed text-[var(--foreground)]">{c.clinical_note}</p>;
+
+    const matching = spans.filter((s) => s.code === activeSpan);
+    if (matching.length === 0) return <p className="whitespace-pre-wrap leading-relaxed text-[var(--foreground)]">{c.clinical_note}</p>;
+
+    // Render note with highlighted segments.
+    const sorted = [...matching].sort((a, b) => a.start - b.start);
+    const parts: React.ReactNode[] = [];
+    let cursor = 0;
+    const findingFraudType = result.findings.find((f) => f.code === activeSpan)?.fraud_type ?? "upcoding";
+    const highlightColor = FRAUD_META[findingFraudType].color;
+    sorted.forEach((s, i) => {
+      if (s.start > cursor) parts.push(<span key={`t${i}`}>{c.clinical_note.slice(cursor, s.start)}</span>);
+      parts.push(
+        <mark
+          key={`m${i}`}
+          className="rounded px-0.5 py-0.5 text-white"
+          style={{ background: highlightColor }}
+        >
+          {c.clinical_note.slice(s.start, s.end)}
+        </mark>,
+      );
+      cursor = s.end;
+    });
+    if (cursor < c.clinical_note.length) parts.push(<span key="end">{c.clinical_note.slice(cursor)}</span>);
+    return <p className="whitespace-pre-wrap leading-relaxed text-[var(--foreground)]">{parts}</p>;
+  }
+
+  const submittedProc = c.submitted_codes.procedures;
+  const predictedProc = result.predicted_codes.procedures;
+
+  return (
+    <div className="space-y-4">
+      {/* Breadcrumb + header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
+          <Link href="/" className="inline-flex items-center gap-1 hover:text-[var(--foreground)]">
+            <ArrowLeft className="h-3.5 w-3.5" /> Queue
+          </Link>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span className="font-mono text-xs">{c.case_id}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {result.findings.length > 0 && <RiskBadge score={Math.round(result.max_confidence * 100)} />}
+          <IntentBadge
+            intent={result.findings.some((f) => f.intent === "fraud") ? "fraud" : result.findings.some((f) => f.intent === "error") ? "error" : "clean"}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight">{provider.name}</h1>
+          <p className="text-sm text-[var(--muted)]">
+            {provider.specialty} · NPI {provider.npi} · {provider.state} · DOS {formatDate(c.encounter.date)}
+          </p>
+        </div>
+        <Link
+          href={`/providers/${provider.id}`}
+          className="text-sm font-medium text-[var(--accent)] hover:underline"
+        >
+          View provider pattern →
+        </Link>
+      </div>
+
+      {/* Agent pipeline (streaming cards) */}
+      <Card>
+        <CardHeader title="Agent pipeline" subtitle="Orchestrated agents — facts, coding, grounding, verification, judgement, impact" />
+        <div className="flex flex-wrap gap-2.5 p-4">
+          {result.agent_trace.slice(0, visibleAgents).map((card, i) => (
+            <AgentCardView key={card.id} card={card} index={i} />
+          ))}
+          {visibleAgents < result.agent_trace.length && (
+            <div className="flex items-center gap-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted)]">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Processing…
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* Main grid: note + codes/findings */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_1fr]">
+        {/* Left: clinical note */}
+        <Card className="overflow-hidden">
+          <CardHeader
+            title="Clinical note"
+            subtitle="Click a finding to highlight its evidence in the note"
+            right={
+              activeSpan && (
+                <button
+                  onClick={() => setActiveSpan(null)}
+                  className="text-xs font-medium text-[var(--accent)] hover:underline"
+                >
+                  Clear highlight
+                </button>
+              )
+            }
+          />
+          <div className="max-h-[460px] overflow-y-auto px-5 py-4 text-sm">
+            {renderNote()}
+          </div>
+        </Card>
+
+        {/* Right: codes + findings */}
+        <div className="space-y-4">
+          {/* Submitted vs predicted */}
+          <Card>
+            <CardHeader title="Submitted vs predicted codes" subtitle="What the provider billed vs what the note supports" />
+            <div className="divide-y divide-[var(--border)]">
+              {submittedProc.map((sp, i) => {
+                const pp = predictedProc[i];
+                const mismatch = pp && sp.code !== pp.code;
+                return (
+                  <div
+                    key={i}
+                    className={cn(
+                      "grid grid-cols-2 gap-px px-4 py-3 text-sm",
+                      mismatch && "bg-[var(--risk-high-soft)]/40",
+                    )}
+                  >
+                    <div>
+                      <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">Submitted</div>
+                      <div className="font-mono font-semibold">{sp.code}</div>
+                      <div className="text-xs text-[var(--muted)] line-clamp-2">{sp.description}</div>
+                      {sp.modifiers.length > 0 && (
+                        <div className="mt-1 flex gap-1">
+                          {sp.modifiers.map((m) => (
+                            <span key={m} className="rounded bg-[var(--risk-med-soft)] px-1 py-0.5 text-[10px] font-semibold text-[var(--risk-med)]">{m}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">Predicted</div>
+                      <div className={cn("font-mono font-semibold", mismatch ? "text-[var(--risk-low)]" : "text-[var(--foreground)]")}>
+                        {pp?.code ?? "—"}
+                      </div>
+                      <div className="text-xs text-[var(--muted)] line-clamp-2">{pp?.description}</div>
+                      {mismatch && (
+                        <div className="mt-1 text-[11px] font-medium text-[var(--risk-high)]">
+                          ↓ {formatUSD((EM_charge(sp.code) - EM_charge(pp.code)))} overbilled
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          {/* Findings / fraud flags */}
+          <Card>
+            <CardHeader title="Findings" subtitle={`${result.findings.length} flag${result.findings.length === 1 ? "" : "s"} · ${formatUSD(result.total_impact, true)} projected impact`} />
+            <div className="space-y-2 p-3">
+              {result.findings.length === 0 && (
+                <div className="px-2 py-6 text-center text-sm text-[var(--muted)]">No anomalies. Codes align with the note.</div>
+              )}
+              {result.findings.map((f, i) => (
+                <FindingRow key={i} finding={f} onActivate={() => setActiveSpan(f.code)} active={activeSpan === f.code} />
+              ))}
+            </div>
+          </Card>
+
+          {/* Economic impact */}
+          {result.total_impact > 0 && (
+            <Card className="overflow-hidden">
+              <CardHeader title="Economic impact" subtitle="Deterministic — overpayment × frequency × penalty multiplier" right={<DollarSign className="h-4 w-4 text-[var(--risk-high)]" />} />
+              <div className="px-5 py-4">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold tabular-nums text-[var(--risk-high)]">{formatUSD(result.total_impact, true)}</span>
+                  <span className="text-sm text-[var(--muted)]">projected across similar claims</span>
+                </div>
+                <p className="mt-2 text-xs text-[var(--muted)]">
+                  Single-claim overpayment extrapolated by detected frequency (45 similar claims) × 2.5× penalty multiplier for likely fraud.
+                </p>
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EM_charge(code: string): number {
+  const table: Record<string, number> = { "99211": 40, "99212": 75, "99213": 115, "99214": 175, "99215": 240 };
+  return table[code] ?? 0;
+}
+
+function AgentCardView({ card, index }: { card: AgentCard; index: number }) {
+  const Icon = AGENT_ICONS[card.id] ?? Circle;
+  return (
+    <div
+      className="animate-fade-rise flex w-[210px] items-start gap-2.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 shadow-sm"
+      style={{ animationDelay: `${index * 40}ms` }}
+    >
+      <span className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-md bg-[var(--accent-soft)] text-[var(--accent)]">
+        <Icon className="h-4 w-4" />
+      </span>
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-[var(--foreground)]">{card.title}</span>
+          <Check className="h-3 w-3 text-[var(--risk-low)]" />
+        </div>
+        <p className="mt-0.5 text-[11px] leading-snug text-[var(--muted)] line-clamp-2">{card.summary}</p>
+      </div>
+    </div>
+  );
+}
+
+function FindingRow({ finding, onActivate, active }: { finding: Finding; onActivate: () => void; active: boolean }) {
+  const meta = FRAUD_META[finding.fraud_type];
+  const Icon = meta.icon;
+  return (
+    <button
+      onClick={onActivate}
+      className={cn(
+        "flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition",
+        active ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)] hover:bg-[var(--surface-2)]",
+      )}
+    >
+      <span className="mt-0.5 flex h-7 w-7 flex-none items-center justify-center rounded-md" style={{ background: meta.soft, color: meta.color }}>
+        <Icon className="h-4 w-4" strokeWidth={2.5} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-semibold" style={{ color: meta.color }}>{meta.label}</span>
+          <span className="font-mono text-xs text-[var(--muted)]">{finding.code}</span>
+        </div>
+        <p className="mt-0.5 text-xs leading-snug text-[var(--muted)] line-clamp-3">{finding.rationale}</p>
+        <div className="mt-1.5 flex items-center gap-3 text-[11px]">
+          <span className="text-[var(--muted-2)]">Confidence <span className="font-semibold text-[var(--foreground)]">{formatPct(finding.confidence)}</span></span>
+          <span className="text-[var(--muted-2)]">Grounding <span className="font-semibold text-[var(--foreground)]">{formatPct(finding.grounding_score)}</span></span>
+          <span className="ml-auto font-semibold text-[var(--risk-high)]">{formatUSD(finding.dollar_impact, true)}</span>
+        </div>
+      </div>
+    </button>
+  );
+}

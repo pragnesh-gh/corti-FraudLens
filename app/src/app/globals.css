@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+/* ---- Design tokens: clean clinical aesthetic, light-first ---- */
+:root {
+  --background: #f6f8fb; /* soft off-white ground */
+  --surface: #ffffff; /* cards, panels */
+  --surface-2: #f1f5f9; /* subtle alt rows / wells */
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  --foreground: #0f172a; /* slate-900 */
+  --muted: #64748b; /* slate-500 */
+  --muted-2: #94a3b8; /* slate-400 */
+
+  --accent: #2563eb; /* blue-600 — interactive accent */
+  --accent-soft: #eff6ff; /* blue-50 */
+
+  /* Semantic risk colors */
+  --risk-high: #dc2626; /* red-600 */
+  --risk-high-soft: #fef2f2;
+  --risk-med: #d97706; /* amber-600 */
+  --risk-med-soft: #fffbeb;
+  --risk-low: #16a34a; /* green-600 */
+  --risk-low-soft: #f0fdf4;
+
+  /* Per-fraud-type accents */
+  --fraud-upcoding: #dc2626; /* red */
+  --fraud-unbundling: #ea580c; /* orange */
+  --fraud-phantom: #b91c1c; /* deep red */
+  --fraud-dx-inflation: #d97706; /* amber */
+  --fraud-cloning: #7c3aed; /* purple */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-2: var(--muted-2);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-risk-high: var(--risk-high);
+  --color-risk-high-soft: var(--risk-high-soft);
+  --color-risk-med: var(--risk-med);
+  --color-risk-med-soft: var(--risk-med-soft);
+  --color-risk-low: var(--risk-low);
+  --color-risk-low-soft: var(--risk-low-soft);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Thin, clinical scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 9999px;
+}
+
+/* Subtle entrance animation for streaming agent cards / flags */
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-rise {
+  animation: fade-rise 0.35s ease-out both;
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+.animate-pulse-soft {
+  animation: pulse-soft 1.4s ease-in-out infinite;
+}
+
+/* ---- Guided tour animations ---- */
+/* Deterministic, CSS-only motion for the diagnosis-padding tour. No JS libs. */
+
+/* A row of code comparison slides from the left (billed) column over to align
+   beside its truth-column counterpart. Used when the "what was billed" cards
+   slide to meet the "what the note supports" cards. */
+@keyframes tour-slide-over {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.tour-slide-over {
+  animation: tour-slide-over 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* A red "attention" pulse used on the fraudulent N18.3 row + missing-evidence
+   note spans once the comparison lands. Two visible beats then it holds. */
+@keyframes tour-flag-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--risk-high);
+  }
+  35% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+  70% {
+    box-shadow: 0 0 0 0 var(--risk-high);
+  }
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+.tour-flag-pulse {
+  animation: tour-flag-pulse 1.1s ease-out 2;
+}
+
+/* Severity meter fill: the colored bar width is driven inline by a CSS var
+   (--tour-fill, 0-100). The transition does the "alive" sweep on mount. */
+.tour-meter-fill {
+  transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The billing-impact flow: HCC → risk score → $. Each node pops in, then a
+   connector line "draws" left-to-right via a width transition. */
+@keyframes tour-node-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.tour-node-pop {
+  animation: tour-node-pop 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.tour-connector {
+  transition: transform 0.5s ease-out;
+  transform-origin: left center;
+}
+
+/* A soft highlight sweep across a note sentence, used to prove the
+   missing-evidence point (no renal labs / no CKD history). */
+@keyframes tour-highlight-sweep {
+  0% {
+    background-color: transparent;
+  }
+  20% {
+    background-color: var(--risk-high-soft);
+  }
+  100% {
+    background-color: var(--risk-high-soft);
+  }
+}
+.tour-highlight-sweep {
+  animation: tour-highlight-sweep 0.6s ease-out both;
+  border-radius: 3px;
+}
+
+/* Step transition: content of the active step rises in. */
+@keyframes tour-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.tour-step-in {
+  animation: tour-step-in 0.4s ease-out both;
+}

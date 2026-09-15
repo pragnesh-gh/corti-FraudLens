@@ -21,4 +21,10 @@ After that, opening this repo automatically enables the skills.
 
 ## Status
 
-Empty scaffold. Nothing runs yet.
+FraudLens app is built and runs — Case Queue, Case Detail (streaming agent
+cards + note-highlighted findings), Provider Pattern Dashboard, and a Guided
+Tour. See `AGENTS.md` for the architecture and `docs/` for research + decisions.
+
+```
+cd app && npm run dev    # http://localhost:3000
+```
