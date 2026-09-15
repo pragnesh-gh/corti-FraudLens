@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# Env / secrets
+.env
+.env.local
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Claude local-only state (keep settings.json, ignore the rest)
+.claude/worktrees/
+.claude/cache/
+.claude/projects/
+.claude/sessions/
+.claude/plans/
