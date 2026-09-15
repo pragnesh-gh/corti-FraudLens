@@ -123,6 +123,14 @@ async function main() {
     }
   }
 
+  // 2b. coding-expert API endpoint (live-status GET)
+  {
+    const r = await fetch(`${BASE}/api/coding-expert`, { redirect: "manual" });
+    assert("Coding-expert API [GET status] → " + r.status, r.status === 200);
+    const j = await r.json();
+    assert("  returns {live: boolean}", typeof j.live === "boolean");
+  }
+
   // 3. a clean-control case should show no findings
   {
     const { text: landing } = await fetchText("/");

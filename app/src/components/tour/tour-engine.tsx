@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import type { TourCase } from "./tour-types";
 import { CodeCard, SeverityMeter, DeltaChip, ConfidenceGauge } from "./tour-widgets";
+import { TryItYourself } from "./try-it-yourself";
 
 // ---------------------------------------------------------------------------
 // TourEngine — the deterministic step runner + controls + header.
@@ -834,6 +835,9 @@ function VerdictStep({ tc, onReplay }: { tc: TourCase; onReplay: () => void }) {
           </div>
         </div>
       </Card>
+
+      {/* Try it yourself — run the real coding-expert on this case's note. */}
+      <TryItYourself initialCaseId={tc.caseId} />
 
       <Card className="px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">

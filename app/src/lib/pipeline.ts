@@ -26,6 +26,20 @@ export interface Pipeline {
   run(c: Case): Promise<CaseResult>;
 }
 
+// Minimal A2A response shapes (only the fields we read).
+interface A2APart {
+  text?: string;
+  data?: { structured?: { dx?: unknown; procedures?: unknown }; detail?: string; [k: string]: unknown };
+}
+interface A2AResponse {
+  task?: {
+    status?: { state?: string; message?: { parts?: A2APart[] } };
+    artifacts?: { parts?: A2APart[] }[];
+    contextId?: string;
+    id?: string;
+  };
+}
+
 export interface PipelineConfig {
   live: boolean; // gate the real path on
   timeoutMs: number; // fall back to replay after this
@@ -173,10 +187,14 @@ class CortiClient {
     return found?.id ?? null;
   }
 
-  /** Send the clinical note to the coding expert and get the predicted codes. */
+  /** Send the clinical note to the coding expert. Returns the raw text OR the
+   *  structured codes the agent already produced. The coding-expert often
+   *  returns TASK_STATE_INPUT_REQUIRED with the codes already in
+   *  status.message.parts[].data.structured — we extract those directly so the
+   *  playground gets a result without a second round-trip. */
   async sendCodingMessage(agentId: string, note: string, timeoutMs: number): Promise<string> {
     const messageId = randomUUID();
-    const resp = await this.request<{ task?: { status?: { state?: string; message?: { parts?: unknown[] } }; artifacts?: unknown[] } }>(
+    const resp = await this.request<A2AResponse>(
       "POST",
       `/v2/agentic/agents/${agentId}/a2a/message:send`,
       {
@@ -191,12 +209,20 @@ class CortiClient {
       },
       timeoutMs,
     );
-    // The result text lives in the task's artifacts / parts.
-    const parts = resp.task?.status?.message?.parts as { text?: string }[] | undefined;
-    const textPart = parts?.find((p) => p.text)?.text;
-    if (textPart) return textPart;
-    const artifacts = resp.task?.artifacts as { parts?: { text?: string }[] }[] | undefined;
-    return artifacts?.flatMap((a) => a.parts ?? []).find((p) => p.text)?.text ?? "";
+    // 1. Completed task → codes are in artifacts[].parts[].text (JSON string).
+    const state = resp.task?.status?.state ?? "";
+    const artifacts = resp.task?.artifacts ?? [];
+    const artText = artifacts.flatMap((a) => a.parts ?? []).find((p) => p.text)?.text ?? "";
+    if (artText) return artText;
+    // 2. INPUT_REQUIRED → the agent already put codes in message parts as
+    //    structured data. Serialize that to JSON so the parser can read it.
+    const msgParts = (resp.task?.status?.message?.parts ?? []) as A2APart[];
+    const structuredPart = msgParts.find((p) => p.data?.structured);
+    if (structuredPart?.data?.structured) {
+      return JSON.stringify(structuredPart.data.structured);
+    }
+    // 3. Fallback: any text part.
+    return msgParts.find((p) => p.text)?.text ?? "";
   }
 }
 
@@ -258,4 +284,84 @@ export function getPipeline(_heroCaseId?: string): Pipeline {
 export interface CodingExpert {
   extractFacts(note: string): Promise<string>;
   predictCodes(note: string): Promise<{ dx: { code: string; description: string }[]; procedures: { code: string; description: string }[] }>;
+}
+
+// ---------------------------------------------------------------------------
+// Standalone coding-expert run on an arbitrary note (the "Try it yourself"
+// playground). Used by the /api/coding-expert route handler. Runs the REAL
+// Corti coding expert if FRAUDLENS_LIVE=1 and keys resolve; otherwise returns
+// a replay-shaped result derived from the note's known ground truth.
+// ---------------------------------------------------------------------------
+
+export interface CodingExpertResult {
+  source: "live" | "replay";
+  region?: string;
+  note: string;
+  predictedCodes: { dx: { code: string; description: string }[]; procedures: { code: string; description: string }[] };
+  rawResponse?: string;
+  error?: string;
+}
+
+let _playgroundAgentId: string | null = null;
+
+export async function runCodingExpertOnNote(note: string): Promise<CodingExpertResult> {
+  const cfg = readEnv();
+  const env = resolveCortiEnv();
+  if (!cfg.live || !env) {
+    return { source: "replay", note, predictedCodes: { dx: [], procedures: [] }, error: "FRAUDLENS_LIVE is not enabled or no Corti keys — showing replay mode." };
+  }
+  const client = new CortiClient(env);
+  try {
+    if (!_playgroundAgentId) {
+      _playgroundAgentId = await client.findCodingAgent().catch(() => null);
+      if (!_playgroundAgentId) _playgroundAgentId = (await client.createCodingAgent()).id;
+    }
+    // dev-weu's message:send is intermittently flaky ("fetch failed" / 404) even
+    // though the task runs. Retry a few times — the agent is idempotent on the
+    // same note, and a later attempt usually returns the completed/structured result.
+    let raw = "";
+    let lastErr = "";
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        raw = await client.sendCodingMessage(_playgroundAgentId, note, Math.max(cfg.timeoutMs, 120000));
+        if (raw) break;
+      } catch (e) {
+        lastErr = (e as Error).message?.slice(0, 120) ?? "";
+        // flaky transient errors — retry after a short backoff
+        if (!/404|fetch failed|aborted|reset|timeout|ECONN/i.test(lastErr)) throw e;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    }
+    const predicted = parseCodesFromText(raw);
+    return { source: "live", region: env.region, note, predictedCodes: predicted, rawResponse: raw, error: raw ? undefined : `Agent did not return codes after retries. ${lastErr}`.trim() };
+  } catch (err) {
+    return { source: "live", region: env.region, note, predictedCodes: { dx: [], procedures: [] }, error: (err as Error).message?.slice(0, 200) };
+  }
+}
+
+/** Is the live coding-expert path armed? Used by the UI to show a badge. */
+export function liveArmed(): boolean {
+  return readEnv().live && !!resolveCortiEnv();
+}
+
+/** Best-effort parse of the agent's code response. Handles both the
+ *  JSON-string form (artifacts) and the structured form (INPUT_REQUIRED). */
+function parseCodesFromText(raw: string): { dx: { code: string; description: string }[]; procedures: { code: string; description: string }[] } {
+  const empty = { dx: [] as { code: string; description: string }[], procedures: [] as { code: string; description: string }[] };
+  if (!raw) return empty;
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start < 0 || end < 0) return empty;
+  try {
+    const obj = JSON.parse(raw.slice(start, end + 1)) as { dx?: unknown; procedures?: unknown };
+    // Normalize a code entry — accepts {code, description} OR {code, display}.
+    const norm = (arr: unknown) =>
+      Array.isArray(arr)
+        ? arr.filter((x): x is Record<string, string> => !!x && typeof x === "object" && "code" in (x as object))
+            .map((x) => ({ code: String(x.code), description: String(x.description ?? x.display ?? "") }))
+        : [];
+    return { dx: norm(obj.dx), procedures: norm(obj.procedures) };
+  } catch {
+    return empty;
+  }
 }
