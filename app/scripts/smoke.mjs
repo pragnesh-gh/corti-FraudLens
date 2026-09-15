@@ -59,8 +59,20 @@ const ROUTES = [
   },
   {
     path: "/tour",
-    name: "Guided Tour",
-    expect: ["tour", "billed"], // loose — tour content varies
+    name: "Guided Tour hub",
+    expect: ["tour"], // hub lists available tours
+    notExpect: [],
+  },
+  {
+    path: "/tour/case_padding_002",
+    name: "Guided Tour (diagnosis padding)",
+    expect: ["billed", "Diagnosis"], // billed appears after step 3; Diagnosis label is in SSR
+    notExpect: [],
+  },
+  {
+    path: "/demo",
+    name: "Guided Demo (presenter)",
+    expect: ["demo"], // presenter overlay
     notExpect: [],
   },
 ];

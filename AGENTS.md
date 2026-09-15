@@ -31,13 +31,18 @@ app/
       layout.tsx              # root layout + AppShell
       page.tsx                # Case Queue (KPI strip + worklist table) — LANDING
       case/[id]/page.tsx      # Case Detail (note + codes + streaming agent cards + findings + $)
-      tour/page.tsx           # Guided Tour — animated two-column "transcript vs truth" walkthrough
+      tour/page.tsx           # Guided Tour hub — pick a fraud type, watch a 7-step walkthrough
+      tour/[caseId]/page.tsx  # individual tour (diagnosis padding, upcoding, unbundling, phantom)
+      demo/page.tsx           # Guided Demo — presenter overlay driving the 90s demo across screens
       providers/page.tsx      # provider list
       providers/[id]/page.tsx # Provider Pattern Dashboard (3 charts + KPI strip)
-  .env.example          # coding-expert live-path keys (CORTI_API_KEY, ANTHROPIC_API_KEY) — gitignored when copied
+  .env.example          # coding-expert live-path keys (CORTI_REGION, AGENT_API_*_<REGION>) — gitignored when copied
+  scripts/smoke.mjs     # text-only smoke test (all routes) — run after changes
+  scripts/live-test.mjs # end-to-end Corti coding-expert live test (auth → agent → message:send)
 docs/
   research-synthesis.md   # findings from the 5 research agents
   grilling-decisions.md   # the decision tree (Q1–Q18)
+  demo-runbook.md         # how to run the demo (screens, 90s flow, live path)
   eval-cases.md           # curated registry of ground-truth fraud eval cases
   eval-cases.json         # canonical eval-case JSON (note-detectable, real codes)
   eval-cases-research.md  # research subagent's expanded case set (when present)
