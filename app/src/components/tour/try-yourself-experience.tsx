@@ -42,7 +42,6 @@ import {
   Sparkles,
   Receipt,
   RotateCcw,
-  Plus,
   BrainCircuit,
   ShieldCheck,
 } from "lucide-react";
@@ -77,11 +76,42 @@ Assessment/Plan:
 1. Acute bronchitis — supportive care, return precautions.
 2. Continue routine hypertension medications.`;
 
+/** A sample bill matching SAMPLE_NOTE, for the "Load a sample" affordance. */
+const SAMPLE_BILLED = `J20.9 — Acute bronchitis
+I10 — Essential hypertension
+99213 — Office visit, established patient, low complexity`;
+
+/**
+ * Parse the billed-codes text box into the {code, description}[] the pipeline
+ * expects. One code per line. The description is everything after the first
+ * separator (" — ", " - ", " : ", or a tab); if there's no separator the whole
+ * line is treated as the code with an empty description. Blank lines and
+ * lines starting with "#" are ignored.
+ */
+function parseBilledText(text: string): { code: string; description: string }[] {
+  return text
+    .split("\n")
+    .map((l) => l.replace(/\s+$/, ""))
+    .filter((l) => l.trim() && !l.trim().startsWith("#"))
+    .map((l) => {
+      const m = l.match(/^\s*([^\s—:\-]+)\s*(?:—|--|-|:|\t)\s*(.*)$/u);
+      if (m) return { code: m[1].trim(), description: m[2].trim() };
+      const c = l.trim();
+      return { code: c, description: "" };
+    });
+}
+
+/** The inverse — render {code, description}[] back into the text-box format. */
+function serializeBilled(codes: { code: string; description: string }[]): string {
+  return codes.map((c) => (c.description ? `${c.code} — ${c.description}` : c.code)).join("\n");
+}
+
 export function TryYourselfExperience() {
   const [tab, setTab] = useState<Tab>("run");
   const [note, setNote] = useState("");
-  // Optional billed codes the user can add.
-  const [billedCodes, setBilledCodes] = useState<{ code: string; description: string }[]>([]);
+  // Optional billed codes, entered as free text (one per line) and parsed into
+  // {code, description}[] on run. Empty string ⇒ prediction-only run.
+  const [billedText, setBilledText] = useState("");
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<RunResult | null>(null);
   const [hasRun, setHasRun] = useState(false);
@@ -101,6 +131,11 @@ export function TryYourselfExperience() {
     };
   }, []);
 
+  // Parse the billed-codes text box on each run; drop lines with no code.
+  const billedCodes = useMemo(
+    () => parseBilledText(billedText).filter((c) => c.code),
+    [billedText],
+  );
   const hasBilled = billedCodes.length > 0;
 
   const run = useCallback(async () => {
@@ -253,8 +288,9 @@ export function TryYourselfExperience() {
           <RunTab
             note={note}
             setNote={setNote}
-            billedCodes={billedCodes}
-            setBilledCodes={setBilledCodes}
+            billedText={billedText}
+            setBilledText={setBilledText}
+            billedCount={billedCodes.length}
             running={running}
             onRun={run}
             runResult={runResult}
@@ -280,14 +316,15 @@ export function TryYourselfExperience() {
 }
 
 // ---------------------------------------------------------------------------
-// Run tab — note input + optional billed codes + Run button + prediction.
+// Run tab — note + optional billed codes (two text boxes) + Run + prediction.
 // ---------------------------------------------------------------------------
 
 function RunTab({
   note,
   setNote,
-  billedCodes,
-  setBilledCodes,
+  billedText,
+  setBilledText,
+  billedCount,
   running,
   onRun,
   runResult,
@@ -295,8 +332,9 @@ function RunTab({
 }: {
   note: string;
   setNote: (v: string) => void;
-  billedCodes: { code: string; description: string }[];
-  setBilledCodes: (v: { code: string; description: string }[]) => void;
+  billedText: string;
+  setBilledText: (v: string) => void;
+  billedCount: number;
   running: boolean;
   onRun: () => void;
   runResult: RunResult | null;
@@ -304,82 +342,65 @@ function RunTab({
 }) {
   return (
     <div className="space-y-4">
-      {/* Clinical note */}
-      <Card className="overflow-hidden">
-        <CardHeader
-          title="Clinical note"
-          subtitle="Paste your own encounter documentation."
-          right={
-            <button
-              onClick={() => setNote(SAMPLE_NOTE)}
-              className="text-[11px] font-medium text-[var(--accent)] hover:underline"
-            >
-              Load a sample
-            </button>
-          }
-        />
-        <div className="p-4">
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            disabled={running}
-            rows={9}
-            placeholder="Paste a clinical note here… (e.g. CC, history, exam, assessment/plan)"
-            className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5 font-mono text-xs leading-relaxed text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:bg-[var(--surface)] disabled:opacity-60"
-          />
-        </div>
-      </Card>
-
-      {/* Optional billed codes */}
-      <Card className="overflow-hidden">
-        <CardHeader
-          title="Billed codes (optional)"
-          subtitle="Add what the provider submitted to run the full compare + legal brief. Skip to get a prediction only."
-        />
-        <div className="space-y-2 p-4">
-          {billedCodes.map((c, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <input
-                value={c.code}
-                onChange={(e) => {
-                  const next = [...billedCodes];
-                  next[i] = { ...c, code: e.target.value };
-                  setBilledCodes(next);
-                }}
-                disabled={running}
-                placeholder="Code (e.g. J20.9)"
-                className="w-32 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 font-mono text-xs text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
-              />
-              <input
-                value={c.description}
-                onChange={(e) => {
-                  const next = [...billedCodes];
-                  next[i] = { ...c, description: e.target.value };
-                  setBilledCodes(next);
-                }}
-                disabled={running}
-                placeholder="Description"
-                className="flex-1 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1.5 text-xs text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
-              />
+      {/* Two structured inputs side by side: clinical note + billed codes */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card className="overflow-hidden">
+          <CardHeader
+            title="Clinical note"
+            subtitle="Paste your own encounter documentation."
+            right={
               <button
-                onClick={() => setBilledCodes(billedCodes.filter((_, j) => j !== i))}
+                onClick={() => setNote(SAMPLE_NOTE)}
                 disabled={running}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted)] transition hover:text-[var(--risk-high)]"
-                aria-label="Remove code"
+                className="text-[11px] font-medium text-[var(--accent)] transition hover:underline disabled:opacity-50"
               >
-                <X className="h-3.5 w-3.5" />
+                Load a sample
               </button>
-            </div>
-          ))}
-          <button
-            onClick={() => setBilledCodes([...billedCodes, { code: "", description: "" }])}
-            disabled={running}
-            className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-[var(--border)] px-2.5 py-1.5 text-xs font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
-          >
-            <Plus className="h-3.5 w-3.5" /> Add a billed code
-          </button>
-        </div>
-      </Card>
+            }
+          />
+          <div className="p-4">
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              disabled={running}
+              rows={9}
+              placeholder="Paste a clinical note here… (e.g. CC, history, exam, assessment/plan)"
+              className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5 font-mono text-xs leading-relaxed text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:bg-[var(--surface)] disabled:opacity-60"
+            />
+          </div>
+        </Card>
+
+        <Card className="overflow-hidden">
+          <CardHeader
+            title="Billed codes (optional)"
+            subtitle="One code per line. Add a description after a dash to run the full compare + legal brief."
+            right={
+              <button
+                onClick={() => setBilledText(SAMPLE_BILLED)}
+                disabled={running}
+                className="text-[11px] font-medium text-[var(--accent)] transition hover:underline disabled:opacity-50"
+              >
+                Load a sample
+              </button>
+            }
+          />
+          <div className="p-4">
+            <textarea
+              value={billedText}
+              onChange={(e) => setBilledText(e.target.value)}
+              disabled={running}
+              rows={9}
+              placeholder={"One code per line, e.g.\nJ20.9 — Acute bronchitis\n99213 — Office visit, established pt"}
+              className="w-full resize-y rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5 font-mono text-xs leading-relaxed text-[var(--foreground)] outline-none transition focus:border-[var(--accent)] focus:bg-[var(--surface)] disabled:opacity-60"
+            />
+            <p className="mt-2 text-[11px] text-[var(--muted-2)]">
+              {billedCount > 0
+                ? `${billedCount} billed code${billedCount === 1 ? "" : "s"} ready · full pipeline will run.`
+                : "Leave empty to get a prediction only (no compare / legal brief)."}
+            </p>
+          </div>
+        </Card>
+      </div>
 
       {/* Run button */}
       <button
@@ -388,7 +409,7 @@ function RunTab({
         className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
       >
         {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-        {running ? "Running…" : billedCodes.length > 0 ? "Run the full pipeline" : "Run the coding-expert"}
+        {running ? "Running…" : billedCount > 0 ? "Run the full pipeline" : "Run the coding-expert"}
       </button>
 
       {/* Result */}
