@@ -119,4 +119,15 @@ export interface TourCase {
   accentColor: string;
   /** CSS soft-bg var for the verdict/conclusion accent. */
   accentSoft: string;
+  /**
+   * Optional patient history — the "Pull patient history" reveal. Only the
+   * history-dependent case (case_history_012) sets this. The summary is the
+   * one-line chart fact the reveal surfaces; the facts are the bullet list
+   * (status codes, prior procedures, meds). The note must NOT contain these
+   * facts — the history is the sole reveal. See docs/research-demo-categories.md.
+   */
+  patientHistory?: {
+    summary: string;
+    facts: string[];
+  };
 }

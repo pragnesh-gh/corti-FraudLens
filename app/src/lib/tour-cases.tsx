@@ -25,6 +25,7 @@ import {
   Scissors,
   Ghost,
   Copy,
+  History,
 } from "lucide-react";
 import { formatUSD } from "@/lib/utils";
 import type { FraudType } from "@/lib/types";
@@ -56,8 +57,16 @@ function baseSteps(
 
 // ---------------------------------------------------------------------------
 // 1. case_padding_002 — diagnosis padding (risk-adjustment)
-//    N18.3 CKD stage 3 on a wellness visit. The original tour.
+//    N18.30 CKD stage 3 on a wellness visit. The original tour.
+//    Dollar impact grounded in the CMS-HCC model: N18.30 → V28 HCC 329,
+//    coeff 0.127 → ~$1,650–1,720/yr added capitated payment at the CMS 2025
+//    MA base (USPCC $13,570/yr, V28 normalization 1.045). See
+//    docs/research-demo-categories.md §4.3.
 // ---------------------------------------------------------------------------
+
+// HCC risk-score → dollar impact (CMS-published, V28 model).
+// 0.127 coeff × $13,570/yr base ≈ $1,723/yr (raw); ÷1.045 norm ≈ $1,649/yr.
+const HCC_N18_PER_YEAR = 1692; // ~$1,650–1,720/yr headline figure
 
 const PADDING_002: TourCase = {
   caseId: "case_padding_002",
@@ -75,13 +84,13 @@ const PADDING_002: TourCase = {
     { code: "I10", description: "Essential (primary) hypertension", fraudulent: false },
     { code: "Z00.00", description: "Encounter for general adult medical exam without abnormal findings", fraudulent: false },
     {
-      code: "N18.3",
-      description: "Chronic kidney disease, stage 3 (moderate)",
+      code: "N18.30",
+      description: "Chronic kidney disease, stage 3 (unspecified)",
       fraudulent: true,
       flagReason: "No renal labs (creatinine/eGFR), no CKD history, no nephrology mention anywhere in note",
     },
   ],
-  fraudCode: "N18.3",
+  fraudCode: "N18.30",
   fraudConfidence: 0.79,
   fraudGrounding: 0.08,
   missingEvidenceSpans: [
@@ -92,7 +101,7 @@ const PADDING_002: TourCase = {
   proofHeadline:
     "Look for any mention of kidneys, renal labs, creatinine, eGFR, or CKD. There is none.",
   proofBody:
-    "No creatinine. No eGFR. No urinalysis. No \"chronic kidney disease\" anywhere. A stage-3 CKD diagnosis needs renal labs — and there are none.",
+    "No creatinine. No eGFR. No urinalysis. No \"chronic kidney disease\" anywhere. A stage-3 CKD diagnosis needs a sustained eGFR 30–59 — and there are no renal labs in the note.",
   steps: baseSteps({
     intro: {
       title: "The case",
@@ -106,12 +115,12 @@ const PADDING_002: TourCase = {
     },
     retrace: {
       title: "The retrace agent",
-      subtitle: "N18.3 is over-billed. The agent asks: is a stage-3 CKD code defensible from this note?",
+      subtitle: "N18.30 is over-billed. The agent asks: is a stage-3 CKD code defensible from this note?",
       duration: 5600,
     },
     impact: {
       title: "Why it pays",
-      subtitle: "N18.3 is an HCC code. Here's how a diagnosis, not a procedure, becomes money.",
+      subtitle: "N18.30 is an HCC code. Here's how a diagnosis, not a procedure, becomes money.",
       duration: 5600,
     },
     verdict: {
@@ -148,17 +157,17 @@ const PADDING_002: TourCase = {
       ),
     },
   ],
-  mismatchTitle: "The mismatch: N18.3",
+  mismatchTitle: "The mismatch: N18.30",
   mismatchSubtitle: "Billed as CKD stage 3 — with nothing in the note to back it.",
   mismatchTruthValue: "Nothing",
   mismatchTruthCaption: "No renal labs, no CKD history, no nephrology",
   impactTitle: "Why a diagnosis pays",
   impactSubtitle:
-    "N18.3 is an HCC code — the diagnosis itself inflates the plan's payment.",
+    "N18.30 is an HCC code — the diagnosis itself inflates the plan's payment.",
   impactNodes: [
     {
       icon: FileText,
-      label: "N18.3 submitted",
+      label: "N18.30 submitted",
       sub: "an HCC-eligible diagnosis",
       color: "var(--fraud-dx-inflation)",
       soft: "var(--risk-med-soft)",
@@ -166,44 +175,47 @@ const PADDING_002: TourCase = {
     {
       icon: TrendingUp,
       label: "Risk score rises",
-      sub: "HCC weight added to the member",
+      sub: "V28 HCC 329 · +0.127 to the member",
       color: "var(--accent)",
       soft: "var(--accent-soft)",
     },
     {
       icon: DollarSign,
       label: "Capitated payment ↑",
-      sub: `+${formatUSD(2000)}/yr to the plan`,
+      sub: `+${formatUSD(HCC_N18_PER_YEAR)}/yr to the plan`,
       color: "var(--risk-high)",
       soft: "var(--risk-high-soft)",
     },
   ],
   impactStats: [
-    { label: "Per-claim HCC uplift", value: `${formatUSD(2000)}/yr` },
+    { label: "Per-claim HCC uplift", value: `${formatUSD(HCC_N18_PER_YEAR)}/yr` },
+    { label: "Risk-score delta", value: "+0.127 (V28 HCC 329)" },
     { label: "Similar claims detected", value: "45" },
-    { label: "Projected impact", value: formatUSD(10125, true), danger: true },
   ],
   impactInsight: (
     <>
       <span className="font-semibold">The key insight:</span> no procedure was upcoded and no E/M
       level was inflated. The provider billed the same wellness visit — but added{" "}
-      <span className="font-mono font-semibold text-[var(--risk-high)]">N18.3</span> to the
-      diagnosis list. In a risk-adjusted model, that single line raises the plan's capitated payment
-      for the year. <span className="font-medium">The diagnosis is the money.</span>
+      <span className="font-mono font-semibold text-[var(--risk-high)]">N18.30</span> to the
+      diagnosis list. In a risk-adjusted model, that single line raises the member's risk score by{" "}
+      <span className="font-medium">0.127</span> (V28 HCC 329) — worth about{" "}
+      <span className="font-medium">{formatUSD(HCC_N18_PER_YEAR)}/yr</span> in added capitated payment
+      at the CMS 2025 base. <span className="font-medium">The diagnosis is the money.</span>
     </>
   ),
   verdictFacts: [
     { icon: FileText, label: "Fraud type", value: "Diagnosis Inflation" },
     { icon: Gavel, label: "Intent", value: "Likely Fraud" },
-    { icon: DollarSign, label: "Projected impact", value: formatUSD(10125, true), money: true },
+    { icon: DollarSign, label: "HCC uplift", value: `${formatUSD(HCC_N18_PER_YEAR)}/yr`, money: true },
     { icon: ScanSearch, label: "Evidence", value: "Zero grounding in note" },
   ],
   verdictConclusion: (
     <>
       <span className="font-semibold">No procedure or higher E/M level was needed.</span> The
-      diagnosis itself is the money: <span className="font-mono">N18.3</span> is an HCC code that
-      raised the patient's risk score and inflated the plan's Medicare Advantage capitated payment
-      — with no renal labs, no CKD history, and no nephrology anywhere in the note.
+      diagnosis itself is the money: <span className="font-mono">N18.30</span> is an HCC code that
+      raised the patient's risk score (V28 HCC 329, +0.127) and inflated the plan's Medicare Advantage
+      capitated payment by about {formatUSD(HCC_N18_PER_YEAR)}/yr — with no renal labs, no CKD
+      history, and no nephrology anywhere in the note.
     </>
   ),
   accentColor: "var(--fraud-dx-inflation)",
@@ -213,12 +225,16 @@ const PADDING_002: TourCase = {
 // ---------------------------------------------------------------------------
 // 2. case_upcoding_001 — upcoding (FFS)
 //    I11.9 hypertensive heart disease on a routine BP check; exam shows no
-//    heart disease. Truth = I10.
+//    heart disease. Truth = I10. Note: I11.9 carries NO HCC in the CMS-HCC
+//    model (V24/V28) — only I11.0 (with heart failure) does. A diagnosis swap
+//    does not by itself set the E/M level (MDM/time does). So the impact here
+//    is framed as diagnosis creep — a more severe chronic cardiac diagnosis
+//    than documented — not as a risk-score or direct E/M-level uplift.
 // ---------------------------------------------------------------------------
 
-const PER_CLAIM_UPCODE = 95; // approximate E/M uplift per claim
+const PER_CLAIM_UPCODE = 95; // approximate dx-creep reimbursement effect per claim
 const SIMILAR_UPCODES = 45;
-const UPCODING_IMPACT = 10125;
+const UPCODING_IMPACT = 4275; // PER_CLAIM_UPCODE × SIMILAR_UPCODES
 
 const UPCODING_001: TourCase = {
   caseId: "case_upcoding_001",
@@ -268,7 +284,7 @@ const UPCODING_001: TourCase = {
     },
     impact: {
       title: "Why an upcode pays",
-      subtitle: "I11.9 upcodes the E/M complexity — a higher-paying code for the same visit.",
+      subtitle: "A more severe chronic cardiac diagnosis than documented — higher complexity, same visit.",
       duration: 5600,
     },
     verdict: {
@@ -287,9 +303,10 @@ const UPCODING_001: TourCase = {
       body: (
         <>
           In <span className="font-semibold text-[var(--accent)]">fee-for-service</span>, the
-          provider is paid for each code submitted. A more complex{" "}
-          <span className="font-medium text-[var(--foreground)]">diagnosis</span> raises the
-          visit's medical-decision-making — and its <span className="font-medium">reimbursement</span>.
+          provider is paid for each code submitted. A more{" "}
+          <span className="font-medium text-[var(--foreground)]">severe diagnosis</span> than the
+          note supports raises the visit's documented complexity — and can nudge its{" "}
+          <span className="font-medium">reimbursement</span> upward.
         </>
       ),
     },
@@ -310,19 +327,19 @@ const UPCODING_001: TourCase = {
   mismatchTruthCaption: "Essential hypertension, no heart involvement",
   impactTitle: "Why an upcode pays",
   impactSubtitle:
-    "I11.9 upcodes the E/M medical decision-making to a higher-paying level — same visit, more money.",
+    "A more severe chronic cardiac diagnosis than the note supports — higher documented complexity for the same visit.",
   impactNodes: [
     {
       icon: TrendingUp,
       label: "I11.9 submitted",
-      sub: "a higher-complexity cardiac dx",
+      sub: "a more severe cardiac dx",
       color: "var(--fraud-upcoding)",
       soft: "var(--risk-high-soft)",
     },
     {
       icon: BrainCircuit,
-      label: "E/M complexity ↑",
-      sub: "cardiac dx lifts the MDM level",
+      label: "Documented complexity ↑",
+      sub: "cardiac dx inflates the chart's severity",
       color: "var(--accent)",
       soft: "var(--accent-soft)",
     },
@@ -343,7 +360,8 @@ const UPCODING_001: TourCase = {
     <>
       <span className="font-semibold">The key insight:</span> the visit was a routine BP check — no
       extra work, no cardiac workup. But billing <span className="font-mono font-semibold text-[var(--risk-high)]">I11.9</span>{" "}
-      instead of <span className="font-mono">I10</span> inflates the E/M complexity and the fee.{" "}
+      instead of <span className="font-mono">I10</span> substitutes a more severe chronic cardiac
+      diagnosis for essential hypertension — inflating the chart's documented complexity.{" "}
       <span className="font-medium">A higher code, not a higher service, is the money.</span>
     </>
   ),
@@ -357,9 +375,9 @@ const UPCODING_001: TourCase = {
     <>
       <span className="font-semibold">No cardiac workup was done.</span> The note documents a normal
       heart exam — no murmurs, no S3/S4, no JVD, no edema. Billing{" "}
-      <span className="font-mono">I11.9</span> (hypertensive heart disease) upcodes the visit from{" "}
-      <span className="font-mono">I10</span> (essential hypertension) to a higher-paying complexity
-      level, with no heart findings to justify it.
+      <span className="font-mono">I11.9</span> (hypertensive heart disease) substitutes a more severe
+      chronic cardiac diagnosis for <span className="font-mono">I10</span> (essential hypertension),
+      inflating the documented complexity with no heart findings to justify it.
     </>
   ),
   accentColor: "var(--fraud-upcoding)",
@@ -850,10 +868,207 @@ const CLONING_005: TourCase = {
 };
 
 // ---------------------------------------------------------------------------
+// 6. case_history_012 — impossible procedure on an absent body part (history)
+//    A left-foot ulcer debridement (L97.523 + CPT 97597) billed on a diabetic
+//    whose LEFT LEG was amputated below the knee (Z89.512) in 2023. The note
+//    alone is PLAUSIBLE — it describes a credible left-foot wound — so a
+//    note-only coding expert AGREES with the bill (the doomed codes land in
+//    Common). Only the patient's HISTORY reveals the left foot cannot exist.
+//    This is the history-dependent category: the note alone cannot resolve it.
+//    Codes verified verbatim: Z89.512, L97.523, E11.42, E11.621, CPT 97597/97598.
+//    See docs/research-demo-categories.md §Category D + the "mind-change" flow.
+//    NOTE: the note must NOT mention the amputation — Z89.512 lives only in
+//    patientHistory, and the note must not self-contradict, so the history
+//    reveal (Common → Wrong) is the point.
+// ---------------------------------------------------------------------------
+
+const HISTORY_DEBRIDE_FEE = 120; // approximate CPT 97597 fee
+const SIMILAR_HISTORY_CASES = 18;
+const HISTORY_IMPACT = 4320; // HISTORY_DEBRIDE_FEE × SIMILAR_HISTORY_CASES
+
+const HISTORY_012: TourCase = {
+  caseId: "case_history_012",
+  fraudType: "phantom",
+  billingModel: "fee_for_service",
+  billingModelLabel: "Fee-for-service · history-dependent",
+  teaser:
+    "A left-foot ulcer debridement billed on a diabetic — plausible from the note alone, but the patient's history says the left foot was amputated years ago.",
+  // PLausible wound-care note. No mention of amputation, no internal
+  // contradiction — a note-only coder would code the ulcer and debridement.
+  noteText:
+    "CC: Left foot ulcer follow-up.\n\nHistory: 64yo male with Type 2 diabetes and diabetic neuropathy presents for follow-up wound care of a left foot ulcer, present for 3 weeks. Reports mild discomfort at the ulcer site and occasional clear drainage. Denies fever, chills, or systemic symptoms. Home glucose logs in the 140s-180s. No new concerns.\n\nExam: Left foot: 2.5 cm plantar ulcer beneath the first metatarsal head with mild surrounding callus, shallow base, no exposed tendon or bone, mild serous drainage, no surrounding erythema or warmth. Right foot: intact skin, palpable dorsalis pedis pulse, no ulcer.\n\nAssessment/Plan:\n1. Type 2 diabetes with diabetic neuropathy - continue metformin and gabapentin.\n2. Left foot diabetic ulcer - sharp debridement of necrotic tissue performed today, offloading reinforced, wound care instructions reviewed.\n3. Right foot - intact, preventive diabetic foot care reinforced.",
+  // Patient history is the load-bearing reveal. Z89.512 lives ONLY here.
+  patientHistory: {
+    summary:
+      "Prior left below-knee amputation (Z89.512) in 2023 for a non-healing diabetic foot ulcer; uses a left transtibial prosthesis. Right foot intact with preventive care.",
+    facts: [
+      "Left below-knee amputation — 2023 (Z89.512, Acquired absence of left leg below knee)",
+      "Uses a left transtibial prosthesis",
+      "Type 2 diabetes mellitus with diabetic polyneuropathy (E11.42)",
+      "Right foot intact, preventive diabetic foot care",
+      "Medications: metformin, gabapentin, lisinopril",
+    ],
+  },
+  correctCodes: [
+    { code: "E11.42", description: "Type 2 diabetes mellitus with diabetic polyneuropathy", fraudulent: false },
+    { code: "Z89.512", description: "Acquired absence of left leg below knee", fraudulent: false },
+    { code: "99213", description: "Office visit, established patient, low complexity", fraudulent: false },
+  ],
+  // The bill omits Z89.512 (a fraudster wouldn't bill the amputation status
+  // alongside a left-foot procedure) and adds the impossible ulcer + debridement.
+  billedCodes: [
+    { code: "E11.42", description: "Type 2 diabetes mellitus with diabetic polyneuropathy", fraudulent: false },
+    {
+      code: "L97.523",
+      description: "Non-pressure chronic ulcer of other part of left foot with necrosis of muscle",
+      fraudulent: true,
+      flagReason:
+        "The patient's history (Z89.512) records a prior left below-knee amputation — the left foot does not exist, so a left-foot ulcer cannot be present or debrided. The service is anatomically impossible.",
+    },
+    {
+      code: "97597",
+      description: "Active wound care management (debridement), total wound surface area 20 sq cm or less",
+      fraudulent: true,
+      flagReason:
+        "Debridement billed for a left-foot ulcer that cannot exist on a patient with a prior left below-knee amputation. The service was not — and could not be — rendered.",
+    },
+  ],
+  fraudCode: "L97.523",
+  fraudConfidence: 0.92,
+  fraudGrounding: 0.0,
+  missingEvidenceSpans: [
+    "Left foot: 2.5 cm plantar ulcer beneath the first metatarsal head ...",
+    "Left foot diabetic ulcer - sharp debridement of necrotic tissue performed today ...",
+    "Right foot: intact skin, palpable dorsalis pedis pulse, no ulcer.",
+  ],
+  proofHeadline:
+    "From the note alone, this is a credible diabetic foot-ulcer debridement. Pull the patient history.",
+  proofBody:
+    "A coding expert reading only the note would code the left-foot ulcer (L97.523) and the debridement (97597) — the note describes a real wound. The impossibility only surfaces in the patient's history: Z89.512 (acquired absence of left leg below knee, 2023) means the left foot no longer exists. A left-foot ulcer and its debridement are anatomically impossible — the service could not have been rendered.",
+  steps: baseSteps({
+    intro: {
+      title: "The case",
+      subtitle: "A diabetic foot-ulcer follow-up — plausible from the note. Then we pull the history.",
+      duration: 2600,
+    },
+    predicted: {
+      title: "What our coding expert predicted",
+      subtitle: "From the note alone, the expert AGREES — it codes the left-foot ulcer and debridement.",
+      duration: 4200,
+    },
+    retrace: {
+      title: "Pull patient history",
+      subtitle: "The note can't resolve this. The agent pulls the chart — and finds a prior left below-knee amputation.",
+      duration: 5600,
+    },
+    impact: {
+      title: "Why the history changes everything",
+      subtitle: "The billed left-foot debridement is anatomically impossible — the left foot was amputated in 2023.",
+      duration: 5600,
+    },
+    verdict: {
+      title: "Verdict",
+      subtitle: "Phantom / services not rendered · Likely Fraud · impossible on this patient.",
+      duration: 0,
+    },
+  }),
+  introFacts: [
+    { icon: Stethoscope, label: "Visit type", value: "Diabetic foot-ulcer follow-up" },
+    { icon: HeartPulse, label: "Patient", value: "64yo male, Type 2 diabetes with neuropathy" },
+    { icon: History, label: "History needed", value: "Yes — the note alone is plausible" },
+  ],
+  introMechanism: [
+    {
+      body: (
+        <>
+          Some fraud a coding expert can catch from the <span className="font-semibold">note alone</span>{" "}
+          — an unsupported diagnosis, a bundled code split apart. But some claims look perfectly
+          credible on their face.
+        </>
+      ),
+    },
+    {
+      body: (
+        <>
+          Here, the note describes a real left-foot ulcer and a real debridement. To catch it, the
+          agent has to <span className="font-medium text-[var(--foreground)]">pull the patient&apos;s history</span>{" "}
+          — and discover the left foot was amputated years ago.{" "}
+          <span className="font-medium">The history is the money.</span>
+        </>
+      ),
+    },
+  ],
+  mismatchTitle: "The mismatch: L97.523 + 97597",
+  mismatchSubtitle:
+    "A left-foot ulcer debridement — on a patient whose left leg was amputated below the knee.",
+  mismatchTruthValue: "Left foot absent",
+  mismatchTruthCaption: "Z89.512 · prior left below-knee amputation (2023)",
+  impactTitle: "Why the history changes everything",
+  impactSubtitle:
+    "The billed left-foot debridement is anatomically impossible — the service could not have been rendered.",
+  impactNodes: [
+    {
+      icon: History,
+      label: "Z89.512 in history",
+      sub: "prior left below-knee amputation",
+      color: "var(--fraud-phantom)",
+      soft: "var(--fraud-phantom-soft)",
+    },
+    {
+      icon: ScanSearch,
+      label: "Left-foot codes fail",
+      sub: "L97.523 + 97597 can't apply",
+      color: "var(--accent)",
+      soft: "var(--accent-soft)",
+    },
+    {
+      icon: DollarSign,
+      label: "Fee for nothing",
+      sub: `+${formatUSD(HISTORY_DEBRIDE_FEE)}/claim for an impossible service`,
+      color: "var(--risk-high)",
+      soft: "var(--risk-high-soft)",
+    },
+  ],
+  impactStats: [
+    { label: "Per-claim debridement fee", value: formatUSD(HISTORY_DEBRIDE_FEE) },
+    { label: "Similar history-flagged claims", value: `${SIMILAR_HISTORY_CASES}` },
+    { label: "Projected impact", value: formatUSD(HISTORY_IMPACT, true), danger: true },
+  ],
+  impactInsight: (
+    <>
+      <span className="font-semibold">The key insight:</span> the note alone is credible — a coding
+      expert reading it would agree with the bill. Only the patient&apos;s history reveals the left foot
+      was amputated in 2023 (<span className="font-mono">Z89.512</span>). A left-foot ulcer
+      (<span className="font-mono">L97.523</span>) and its debridement (<span className="font-mono">97597</span>)
+      are anatomically impossible.{" "}
+      <span className="font-medium">An impossible service is the money.</span>
+    </>
+  ),
+  verdictFacts: [
+    { icon: FileText, label: "Fraud type", value: "Phantom Billing" },
+    { icon: Gavel, label: "Intent", value: "Likely Fraud" },
+    { icon: DollarSign, label: "Projected impact", value: formatUSD(HISTORY_IMPACT, true), money: true },
+    { icon: History, label: "Caught by", value: "Patient history" },
+  ],
+  verdictConclusion: (
+    <>
+      <span className="font-semibold">The note alone could not resolve this.</span> It describes a
+      credible left-foot ulcer and debridement. But the patient&apos;s history records a prior left
+      below-knee amputation (<span className="font-mono">Z89.512</span>, 2023) — the left foot does not
+      exist. Billing <span className="font-mono">L97.523</span> and <span className="font-mono">97597</span>{" "}
+      collects a fee for a service that is anatomically impossible to render — a phantom service,
+      caught only by pulling the chart.
+    </>
+  ),
+  accentColor: "var(--fraud-phantom)",
+  accentSoft: "var(--fraud-phantom-soft)",
+};
+
+// ---------------------------------------------------------------------------
 // Registry — ordered so the diagnosis-padding tour is the default/first.
 // ---------------------------------------------------------------------------
 
-export const TOUR_CASES: TourCase[] = [PADDING_002, UPCODING_001, UNBUNDLING_003, PHANTOM_004, CLONING_005];
+export const TOUR_CASES: TourCase[] = [PADDING_002, UPCODING_001, UNBUNDLING_003, PHANTOM_004, CLONING_005, HISTORY_012];
 
 const TOUR_CASE_MAP: Record<string, TourCase> = Object.fromEntries(
   TOUR_CASES.map((tc) => [tc.caseId, tc]),
