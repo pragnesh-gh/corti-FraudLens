@@ -4,11 +4,12 @@
  * Live Demos experience — click-driven, coding-demo-style.
  *
  * Replaces the old auto-advancing 7-step TourEngine. The user is in full
- * control: they land on a "Try it yourself" start screen, click to RUN the
- * coding-expert agent, then click through three tabs — Run → Compare →
- * Investigate — to walk the full pipeline (predict → compare → retrace →
- * judgement → legal brief). Nothing runs in the background; nothing
- * auto-advances between tabs.
+ * control: they land on the Run tab, click to RUN the coding-expert agent,
+ * then click through three tabs — Run → Compare → Investigate — to walk the
+ * full pipeline (predict → compare → retrace → judgement → legal brief).
+ * Nothing runs in the background; nothing auto-advances between tabs.
+ * The clinical note is shown only on the Run tab; Compare and Investigate are
+ * single-column.
  *
  * The history-dependent case (case_history_012) surfaces the "Pull patient
  * history" mind-change inside the Investigate tab (Common → Billed-only),
