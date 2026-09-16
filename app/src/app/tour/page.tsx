@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui";
 import { FRAUD_META } from "@/lib/fraud-meta";
 import { TOUR_CASES } from "@/lib/tour-cases";
-import { Sparkles, Zap, ChevronLeft, ArrowRight } from "lucide-react";
+import { Sparkles, Zap, ChevronLeft, ArrowRight, Star } from "lucide-react";
 
 /**
  * Live Demos hub — the index of demo cases.
@@ -62,7 +62,7 @@ export default function LiveDemosHubPage() {
           </p>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--accent)]/20 bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--accent)]">
-          <Zap className="h-3.5 w-3.5" /> {TOUR_CASES.length} demos
+          <Zap className="h-3.5 w-3.5" /> {TOUR_CASES.filter((c) => c.demo).length} demos · {TOUR_CASES.length} total
         </span>
       </div>
 
@@ -86,8 +86,13 @@ export default function LiveDemosHubPage() {
                         <Icon className="h-5 w-5" strokeWidth={2.5} />
                       </span>
                       <div>
-                        <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">
-                          Demo {i + 1} · {meta.label}
+                        <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">
+                          <span>Demo {i + 1} · {meta.label}</span>
+                          {tc.demo && (
+                            <span className="inline-flex items-center gap-0.5 rounded-md bg-[var(--accent-soft)] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[var(--accent)]">
+                              <Star className="h-2.5 w-2.5" /> Demo
+                            </span>
+                          )}
                         </div>
                         <div className="font-mono text-xs text-[var(--muted)]">{tc.caseId}</div>
                       </div>

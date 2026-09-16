@@ -130,4 +130,10 @@ export interface TourCase {
     summary: string;
     facts: string[];
   };
+  /**
+   * True for the cases chosen for the 8-min presentation. The Live Demos hub
+   * shows a "Demo" badge on these and can sort/filter to surface them first.
+   * See docs/research-demo-categories.md + memory fraudlens-demo-presentation.
+   */
+  demo?: boolean;
 }

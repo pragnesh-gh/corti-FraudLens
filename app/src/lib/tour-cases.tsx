@@ -73,6 +73,7 @@ const PADDING_002: TourCase = {
   fraudType: "dx_inflation",
   billingModel: "risk_adjustment",
   billingModelLabel: "Medicare Advantage · risk-adjusted",
+  demo: true, // presentation Case 1 — basic, precomputed intro
   teaser: "A CKD stage 3 diagnosis billed on a wellness visit — with no renal labs anywhere in the note.",
   noteText:
     "CC: Annual wellness visit.\n\nHistory: 68yo male presents for Medicare annual wellness visit. Reports feeling well overall. On lisinopril for blood pressure, well-controlled. Denies chest pain, dyspnea, cough, edema, or urinary symptoms. No recent hospitalizations.\n\nExam: BP 128/78, HR 70. Lungs clear bilaterally, no wheezes or crackles. Heart regular rate and rhythm. No peripheral edema. Extremities normal.\n\nAssessment/Plan:\n1. Essential hypertension, well-controlled - continue lisinopril.\n2. Medicare annual wellness visit completed, no new concerns.",
@@ -399,6 +400,7 @@ const UNBUNDLING_003: TourCase = {
   fraudType: "unbundling",
   billingModel: "fee_for_service",
   billingModelLabel: "Fee-for-service · per-code payment",
+  demo: true, // presentation Case 2 — mid, structural NCCI lookup
   teaser: "An ECG's technical component billed separately alongside the complete ECG — double-billing one service.",
   noteText:
     "CC: Pre-op cardiac clearance.\n\nHistory: 55yo female referred for ECG prior to elective cholecystectomy. Denies chest pain, palpitations, or dyspnea. Hypertension well-controlled on losartan.\n\nExam: BP 124/80, HR 68. Heart regular rate and rhythm, no murmurs. Lungs clear. No edema.\n\nAssessment/Plan: 12-lead ECG performed, normal sinus rhythm, no acute ischemic changes. Cleared for surgery. Continue losartan.",
@@ -891,6 +893,7 @@ const HISTORY_012: TourCase = {
   fraudType: "phantom",
   billingModel: "fee_for_service",
   billingModelLabel: "Fee-for-service · history-dependent",
+  demo: true, // presentation Case 3 — the live finale, history-dependent
   teaser:
     "A left-foot ulcer debridement billed on a diabetic — plausible from the note alone, but the patient's history says the left foot was amputated years ago.",
   // PLausible wound-care note. No mention of amputation, no internal
@@ -1065,10 +1068,18 @@ const HISTORY_012: TourCase = {
 };
 
 // ---------------------------------------------------------------------------
-// Registry — ordered so the diagnosis-padding tour is the default/first.
+// Registry — the 3 presentation demo cases first (demo: true), then the rest.
+// The Live Demos hub shows a "Demo" badge on the demo:true cases.
 // ---------------------------------------------------------------------------
 
-export const TOUR_CASES: TourCase[] = [PADDING_002, UPCODING_001, UNBUNDLING_003, PHANTOM_004, CLONING_005, HISTORY_012];
+export const TOUR_CASES: TourCase[] = [
+  PADDING_002, // Demo 1 — diagnosis padding (risk-adjustment), precomputed intro
+  UNBUNDLING_003, // Demo 2 — unbundling (NCCI structural), precomputed mid
+  HISTORY_012, // Demo 3 — impossible procedure (history-dependent), live finale
+  UPCODING_001, // reserve — not in the 3-case presentation
+  PHANTOM_004, // reserve
+  CLONING_005, // reserve
+];
 
 const TOUR_CASE_MAP: Record<string, TourCase> = Object.fromEntries(
   TOUR_CASES.map((tc) => [tc.caseId, tc]),
