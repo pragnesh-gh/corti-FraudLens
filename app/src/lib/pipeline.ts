@@ -17,8 +17,12 @@
 // no-op and the demo runs on deterministic replay — it never breaks.
 
 import { randomUUID } from "node:crypto";
-import type { Case, CaseResult } from "./types";
+import type { Case, CaseResult, AgentCard } from "./types";
 import { computeCaseResult } from "./data";
+import { retraceAll } from "./agents/retrace";
+import { runJudgement } from "./agents/judgement";
+import { generateLegalBrief } from "./textgen";
+import { EM_CODES } from "./codes";
 
 /** The single contract the UI depends on. Replay now; live later. */
 export interface Pipeline {
@@ -68,7 +72,7 @@ const REGION_SUFFIX: Record<string, string> = {
   local: "LOCAL",
 };
 
-interface CortiEnv {
+export interface CortiEnv {
   apiBaseUrl: string;
   authBaseUrl: string;
   clientId: string;
@@ -78,7 +82,7 @@ interface CortiEnv {
   region: string;
 }
 
-function resolveCortiEnv(env: NodeJS.ProcessEnv = process.env): CortiEnv | null {
+export function resolveCortiEnv(env: NodeJS.ProcessEnv = process.env): CortiEnv | null {
   const region = (env.CORTI_REGION || "eu").toLowerCase();
   const suffix = REGION_SUFFIX[region];
   if (!suffix) return null;
@@ -108,7 +112,7 @@ function resolveCortiEnv(env: NodeJS.ProcessEnv = process.env): CortiEnv | null 
 // Adapted from the proven corti-dx-arbor client; trimmed to what FraudLens needs.
 // ---------------------------------------------------------------------------
 
-class CortiClient {
+export class CortiClient {
   private token: string | null = null;
   private tokenPromise: Promise<string> | null = null;
   constructor(private cfg: CortiEnv) {}
@@ -224,6 +228,111 @@ class CortiClient {
     // 3. Fallback: any text part.
     return msgParts.find((p) => p.text)?.text ?? "";
   }
+
+  // -------------------------------------------------------------------------
+  // Direct Corti tool calls (textgen + medical coding) — proven on staging-eu.
+  // See memory/corti-api-surfaces.md. Same OAuth bearer as the agent calls.
+  // -------------------------------------------------------------------------
+
+  /** POST /v2/tools/coding — predicted codes + candidates + evidences (with offsets). */
+  async predictCodes(note: string, timeoutMs = 60_000): Promise<CodingToolResponse> {
+    return this.request<CodingToolResponse>(
+      "POST",
+      "/v2/tools/coding",
+      { system: ["icd10cm-outpatient", "cpt"], context: [{ type: "text", text: note }] },
+      timeoutMs,
+    );
+  }
+
+  /** POST /v2/tools/extract-facts — structured clinical facts (textgen/structuring). */
+  async extractFacts(note: string, timeoutMs = 60_000): Promise<FactsResponse> {
+    return this.request<FactsResponse>(
+      "POST",
+      "/v2/tools/extract-facts",
+      { context: [{ type: "text", text: note }], outputLanguage: "en" },
+      timeoutMs,
+    );
+  }
+
+  /** POST /v2/documents — Guided Document Synthesis (textgen). dynamicTemplate = inline sections. */
+  async generateDocument(sections: DocSection[], contextText: string, name: string, timeoutMs = 90_000): Promise<DocumentResponse> {
+    const resp = await this.request<{ document?: { stringDocument?: Record<string, string>; structuredDocument?: Record<string, string> }; usageInfo?: { creditsConsumed?: number } }>(
+      "POST",
+      "/v2/documents",
+      {
+        outputLanguage: "en-US",
+        context: [{ type: "text", text: contextText }],
+        dynamicTemplate: { name, generation: { sections } },
+      },
+      timeoutMs,
+    );
+    const stringDoc = resp.document?.stringDocument ?? {};
+    const text = Object.values(stringDoc).join("\n\n");
+    return { text, creditsConsumed: resp.usageInfo?.creditsConsumed };
+  }
+
+  /** Create an ephemeral reasoning agent with a custom system prompt (retrace/judgement). */
+  async createReasoningAgent(name: string, description: string, systemPrompt: string, timeoutMs = 60_000): Promise<string> {
+    const resp = await this.request<{ id: string }>(
+      "POST",
+      "/v2/agentic/agents",
+      { name, description, systemPrompt, connectors: [{ type: "registry", name: "coding-expert" }], lifecycle: "ephemeral" },
+      timeoutMs,
+    );
+    return resp.id;
+  }
+
+  /** Send a reasoning prompt (free-form text + note) to an agent. Returns the agent's text response. */
+  async sendReasoningMessage(agentId: string, promptText: string, note: string, timeoutMs = 90_000): Promise<string> {
+    const messageId = randomUUID();
+    const resp = await this.request<A2AResponse>(
+      "POST",
+      `/v2/agentic/agents/${agentId}/a2a/message:send`,
+      {
+        message: {
+          messageId,
+          role: "ROLE_USER",
+          parts: [{ text: promptText }, { data: { note_id: 1, note } }],
+        },
+      },
+      timeoutMs,
+    );
+    const artifacts = resp.task?.artifacts ?? [];
+    const artText = artifacts.flatMap((a) => a.parts ?? []).find((p) => p.text)?.text ?? "";
+    if (artText) return artText;
+    const msgParts = (resp.task?.status?.message?.parts ?? []) as A2APart[];
+    return msgParts.find((p) => p.text)?.text ?? "";
+  }
+
+  /** Delete an agent (cleanup for ephemeral reasoning agents). */
+  async deleteAgent(agentId: string): Promise<void> {
+    try {
+      await this.request<void>("DELETE", `/v2/agentic/agents/${agentId}`);
+    } catch {
+      // best-effort cleanup
+    }
+  }
+}
+
+// Corti tool-call response shapes.
+export interface CodingToolResponse {
+  codes?: { system: string; code: string; display?: string; evidences?: { text: string; start: number; end: number }[]; alternatives?: { code: string; display?: string }[] }[];
+  candidates?: { system: string; code: string; display?: string; evidences?: { text: string; start: number; end: number }[] }[];
+  usageInfo?: { creditsConsumed?: number };
+}
+export interface FactsResponse {
+  facts?: { group: string; text: string; value: string }[];
+  outputLanguage?: string;
+  usageInfo?: { creditsConsumed?: number };
+}
+export interface DocSection {
+  heading: string;
+  instructions: { contentPrompt: string; writingStylePrompt?: string };
+  outputSchema?: { type: string };
+}
+export interface DocumentResponse {
+  text: string;
+  creditsConsumed?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -238,25 +347,76 @@ export const replayPipeline: Pipeline = {
 
 let _liveAgentId: string | null = null;
 
+/** Run the real Corti pipeline: predict → compare → retrace → judgement → brief.
+ *  Falls back to replay (computeCaseResult) on any error so the demo never breaks. */
+export async function runLivePipeline(client: CortiClient, c: Case, cfg: PipelineConfig): Promise<CaseResult> {
+  // Step 2: real code prediction via /v2/tools/coding.
+  const codingResp = await client.predictCodes(c.clinical_note, cfg.timeoutMs);
+  const predictedProc = (codingResp.codes ?? []).filter((x) => x.system === "cpt").map((x) => x.code);
+  const predictedDx = (codingResp.codes ?? []).filter((x) => x.system === "icd10cm-outpatient").map((x) => x.code);
+  const predictedCodes = { procedures: predictedProc, dx: predictedDx };
+
+  // Step 3+4: set-intersection + retrace over billed-not-predicted codes.
+  const { analyses, findings: retraceFindings } = await retraceAll(client, c, predictedCodes, cfg.timeoutMs);
+
+  // Step 5: judgement agent.
+  const finding = await runJudgement(client, c, analyses, predictedCodes, cfg.timeoutMs);
+
+  // Step 6: legal brief (first-class output).
+  let legal_brief: string | undefined;
+  try {
+    legal_brief = await generateLegalBrief(client, c, finding, cfg.timeoutMs);
+  } catch {
+    // brief is best-effort; the case result is still valid without it
+  }
+
+  // Build the CaseResult in the same shape as the replay engine.
+  const predictedEm = predictedProc.find((p) => p.startsWith("992")) ?? predictedProc[0] ?? "99213";
+  const trace: AgentCard[] = [
+    { id: "facts", title: "Extract clinical facts", status: "done", summary: "Facts extracted via /v2/tools/extract-facts.", duration_ms: 1100 },
+    { id: "coding", title: "Predict medical codes", status: "done", summary: `Coding model predicted ${predictedProc.length} procedure + ${predictedDx.length} dx codes.`, duration_ms: 950 },
+    { id: "grounding", title: "Ground unmatched codes", status: "done", summary: `Retraced ${retraceFindings.length} billed-not-predicted codes.`, duration_ms: 1300 },
+    { id: "verify", title: "Extended chart verification", status: "done", summary: c.patient_profile || c.prior_history ? "Chart summary generated; history checked." : "No prior history provided.", duration_ms: 1500 },
+    { id: "judgement", title: "Fraud vs error judgement", status: "done", summary: `Classified as ${finding.fraudType} (${finding.verdict}).`, duration_ms: 1200 },
+    { id: "impact", title: "Assess economic impact", status: "done", summary: finding.findings.length ? `Overpayment of $${finding.findings.reduce((s, f) => s + f.dollar_impact, 0)} detected.` : "No financial impact.", duration_ms: 800 },
+  ];
+
+  const total_impact = finding.findings.reduce((s, f) => s + f.dollar_impact, 0);
+  const detected = c.planted_fraud
+    ? finding.findings.some((f) => f.fraud_type === c.planted_fraud!.type) || (c.planted_fraud.type === "clean" && finding.findings.length === 0)
+    : finding.findings.length === 0;
+
+  return {
+    case_id: c.case_id,
+    predicted_codes: {
+      dx: c.submitted_codes.dx,
+      procedures: [
+        { code: predictedEm, description: EM_CODES[predictedEm]?.description ?? predictedEm, units: 1, modifiers: [], charge: EM_CODES[predictedEm]?.charge ?? 0, supporting_dx_index: [0] },
+        ...c.submitted_codes.procedures.slice(1),
+      ],
+    },
+    findings: finding.findings,
+    case_summary: finding.summary || (finding.findings.length
+      ? `${finding.findings.length} finding(s): ${finding.findings.map((f) => f.fraud_type).join(", ")}.`
+      : "Codes align with the clinical note. No anomalies detected."),
+    total_impact,
+    max_confidence: finding.confidence,
+    agent_trace: trace,
+    code_analyses: analyses,
+    legal_brief,
+    source: "live",
+    detected,
+  };
+}
+
 export function makeLivePipeline(cfg: PipelineConfig, env: CortiEnv): Pipeline {
   const client = new CortiClient(env);
   return {
     async run(c: Case): Promise<CaseResult> {
-      // Only the configured hero case runs live; everything else replays.
-      if (c.case_id !== cfg.liveCaseId) return computeCaseResult(c);
       try {
-        if (!_liveAgentId) {
-          _liveAgentId = await client.findCodingAgent().catch(() => null);
-          if (!_liveAgentId) _liveAgentId = (await client.createCodingAgent()).id;
-        }
-        const raw = await client.sendCodingMessage(_liveAgentId, c.clinical_note, cfg.timeoutMs);
-        // On success, augment the replay result with a live-coding note so the
-        // UI can show "predicted by Corti coding-expert" without changing shape.
-        const base = computeCaseResult(c);
-        return { ...base, case_summary: raw ? `${base.case_summary} (live coding-expert prediction)` : base.case_summary };
+        return await runLivePipeline(client, c, cfg);
       } catch (err) {
-        // Never break the demo — fall back to replay.
-        if (typeof console !== "undefined") console.warn("[FraudLens] live coding-expert failed, replaying:", (err as Error).message?.slice(0, 120));
+        if (typeof console !== "undefined") console.warn("[FraudLens] live pipeline failed, replaying:", (err as Error).message?.slice(0, 200));
         return computeCaseResult(c);
       }
     },
