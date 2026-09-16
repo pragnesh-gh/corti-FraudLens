@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { ShieldCheck, ListFilter, LayoutDashboard, GraduationCap, Play, ScanSearch, Network } from "lucide-react";
+import { ShieldCheck, ListFilter, LayoutDashboard, Zap, Play, ScanSearch, Network } from "lucide-react";
 import type { Role } from "@/lib/types";
 
 const ROLE_FRAMING: Record<Role, { label: string; tagline: string; cta: string }> = {
@@ -34,7 +34,7 @@ export function getFraming(role: Role) {
 const NAV = [
   { href: "/", label: "Case Queue", icon: ListFilter },
   { href: "/providers", label: "Providers", icon: LayoutDashboard },
-  { href: "/tour", label: "Guided Tour", icon: GraduationCap },
+  { href: "/tour", label: "Live Demos", icon: Zap },
   { href: "/architecture", label: "Architecture", icon: Network },
   { href: "/coding-demo", label: "Coding Demo", icon: ScanSearch },
   { href: "/demo", label: "Demo", icon: Play },
