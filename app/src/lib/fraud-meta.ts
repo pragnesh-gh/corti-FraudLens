@@ -4,6 +4,7 @@ import {
   Ghost,
   TrendingUp,
   Copy,
+  CheckCircle2,
   type LucideIcon,
 } from "lucide-react";
 import type { FraudType } from "./types";
@@ -61,6 +62,14 @@ export const FRAUD_META: Record<
     soft: "var(--fraud-cloning-soft)",
     description: "Identical notes across encounters or patients.",
   },
+  clean: {
+    label: "Clean Claim",
+    short: "OK",
+    icon: CheckCircle2,
+    color: "var(--risk-low)",
+    soft: "var(--risk-low-soft)",
+    description: "Codes fully supported by the note — no fraud.",
+  },
 };
 
 export const ALL_FRAUD_TYPES: FraudType[] = [
@@ -69,4 +78,8 @@ export const ALL_FRAUD_TYPES: FraudType[] = [
   "phantom",
   "dx_inflation",
   "cloning",
+  // Note: "clean" is intentionally NOT in ALL_FRAUD_TYPES — that array drives the
+  // Case Queue's fraud-type filter/legend, and "clean" is not a fraud type to
+  // filter by. FRAUD_META still has a "clean" entry so the Live Demos hub can
+  // render the clean/contrast case card.
 ];

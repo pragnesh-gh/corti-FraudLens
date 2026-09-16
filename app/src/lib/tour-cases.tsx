@@ -26,6 +26,7 @@ import {
   Ghost,
   Copy,
   History,
+  CheckCircle2,
 } from "lucide-react";
 import { formatUSD } from "@/lib/utils";
 import type { FraudType } from "@/lib/types";
@@ -1270,6 +1271,182 @@ const DEPRESSION_PAD_013: TourCase = {
 };
 
 // ---------------------------------------------------------------------------
+// 8. case_clean_014 — clean claim (no fraud), the contrast/clean case
+//    A 66yo established patient with Type 2 diabetes, hypertension, and
+//    hyperlipidemia. The note documents MODERATE medical decision making across
+//    all 3 elements (2021+ AMA/CMS office-visit E/M rules): (1) multiple stable
+//    chronic conditions with a medication change, (2) moderate data (review of
+//    an outside-lab A1c + independent interpretation + discussion re labs), and
+//    (3) moderate risk (prescription drug management — metformin dose increase
+//    + new statin requiring monitoring). 99214 is the CORRECT, fully-supported
+//    E/M level — the mirror image of case_upcoding_001 (where 99214 was billed
+//    with low MDM). The coding expert predicts the same codes the provider
+//    billed; nothing is unmatched; verdict = clean / no fraud. This shows the
+//    system's false-positive resistance.
+//    Codes verified: I10, E11.9, E78.5 (CDC/CMS ICD-10-CM); 99214 = 3.87
+//    non-fac RVU × $32.3465 = $125.18 (CMS PFS RVU25A). MDM per the 2021 E/M
+//    revisions (Federal Register doc 2020-26815 + AMA 2021 E/M).
+// ---------------------------------------------------------------------------
+
+const CLEAN_99214_FEE = 125.18; // CMS PFS RVU25A: 99214 = 3.87 non-fac RVU × $32.3465
+
+const CLEAN_014: TourCase = {
+  caseId: "case_clean_014",
+  fraudType: "clean",
+  billingModel: "fee_for_service",
+  billingModelLabel: "Fee-for-service · per-code payment",
+  // demo: true intentionally NOT set — this is the contrast/clean case, not one
+  // of the 4 presentation fraud demos.
+  teaser:
+    "A diabetes follow-up billed at 99214 — and the note actually supports it. Moderate medical decision making, outside-lab review, a med change: a legitimate claim the system clears.",
+  noteText:
+    "CC: Diabetes follow-up.\n\nHistory: 66yo male, established patient, here for diabetes management. Reports checking home glucose 2x daily, fasting readings 130s-150s, occasional 180s after meals. Adherent to metformin 1000 mg BID. Denies polyuria, polydipsia, blurry vision, or neuropathic symptoms. Reports occasional leg cramps. No chest pain, dyspnea, or palpitations.\n\nHome glucose logs reviewed: fasting glucose 138 mg/dL average over the past 2 weeks. Patient brought results from an outside lab drawn 1 week ago: HbA1c 8.1% (up from 7.2% six months ago), LDL 112, creatinine 0.9, eGFR >60, normal urinalysis with no proteinuria.\n\nPast medical history: Type 2 diabetes mellitus, essential hypertension, hyperlipidemia.\n\nMedications: metformin 1000 mg BID, lisinopril 10 mg daily, atorvastatin 20 mg nightly. Reports no side effects from current medications.\n\nExam: BP 128/76, HR 72, BMI 28.2. General: well appearing. Neurologic: monofilament testing intact bilaterally, no focal deficits. Foot exam: intact skin, palpable pedal pulses, no ulcerations.\n\nAssessment and Plan:\n1. Type 2 diabetes mellitus - A1c has risen from 7.2% to 8.1% despite adherence to metformin 1000 mg BID. Will increase metformin to 1500 mg BID with meals and recheck A1c in 3 months. Reinforced dietary counseling and home glucose monitoring.\n2. Essential hypertension - Well controlled on lisinopril 10 mg daily. Continue current regimen. Recheck BP in 3 months.\n3. Hyperlipidemia - LDL 112, above goal for a diabetic patient (<100). Will increase atorvastatin to 40 mg nightly. Discussed statin side effects to monitor (muscle aches) and advised to report any symptoms. Will recheck lipid panel in 3 months.\n4. Preventive care - Diabetic foot exam intact. Reinforced annual eye exam and daily foot inspection.",
+  correctCodes: [
+    { code: "I10", description: "Essential (primary) hypertension", fraudulent: false },
+    { code: "E11.9", description: "Type 2 diabetes mellitus without complications", fraudulent: false },
+    { code: "E78.5", description: "Hyperlipidemia, unspecified", fraudulent: false },
+    { code: "99214", description: "Office visit, established patient, moderate complexity", fraudulent: false },
+  ],
+  // The bill MATCHES the truth — identical codes. No fraudulent lines.
+  billedCodes: [
+    { code: "I10", description: "Essential (primary) hypertension", fraudulent: false },
+    { code: "E11.9", description: "Type 2 diabetes mellitus without complications", fraudulent: false },
+    { code: "E78.5", description: "Hyperlipidemia, unspecified", fraudulent: false },
+    { code: "99214", description: "Office visit, established patient, moderate complexity", fraudulent: false },
+  ],
+  fraudCode: "99214",
+  fraudConfidence: 0.05, // low fraud confidence = high confidence the claim is CLEAN
+  fraudGrounding: 0.95, // 99214 is well grounded in the note (moderate MDM)
+  missingEvidenceSpans: [
+    "HbA1c 8.1% (up from 7.2% six months ago)...",
+    "Will increase metformin to 1500 mg BID with meals and recheck A1c in 3 months.",
+    "Will increase atorvastatin to 40 mg nightly. Discussed statin side effects to monitor...",
+    "Home glucose logs reviewed: fasting glucose 138 mg/dL average over the past 2 weeks.",
+  ],
+  proofHeadline:
+    "Every billed code is grounded in the note. This is what legitimate, well-documented moderate MDM looks like.",
+  proofBody:
+    "99214 (established patient, moderate MDM) is fully supported. The note documents moderate complexity across all 3 MDM elements: (1) multiple chronic conditions with progression — diabetes A1c rose from 7.2% to 8.1% requiring a medication change; (2) moderate data — review of an outside lab A1c and lipid panel plus home glucose logs; (3) moderate risk — prescription drug management requiring monitoring (metformin increased, new higher-dose statin). The diagnosis codes (I10, E11.9, E78.5) are each assessed and managed. The coding expert predicts the same four codes the provider billed — nothing is unmatched.",
+  steps: baseSteps({
+    intro: {
+      title: "The case",
+      subtitle: "A diabetes follow-up billed at 99214 — and the note actually supports it.",
+      duration: 2600,
+    },
+    predicted: {
+      title: "What our coding expert predicted",
+      subtitle: "The expert predicts the same four codes the provider billed — a perfect match.",
+      duration: 4200,
+    },
+    retrace: {
+      title: "The retrace agent",
+      subtitle: "Every code is grounded: moderate MDM, outside-lab review, a medication change. No findings.",
+      duration: 5600,
+    },
+    impact: {
+      title: "Why this is legitimate",
+      subtitle: "99214 is the correct level for documented moderate decision making — a fair payment, not fraud.",
+      duration: 5600,
+    },
+    verdict: {
+      title: "Verdict",
+      subtitle: "Clean · No Fraud · all billed codes fully supported by the note.",
+      duration: 0,
+    },
+  }),
+  introFacts: [
+    { icon: Stethoscope, label: "Visit type", value: "Diabetes follow-up (established)" },
+    { icon: HeartPulse, label: "Patient", value: "66yo male, T2DM + HTN + hyperlipidemia" },
+    { icon: FileText, label: "Payer model", value: "Fee-for-service — paid per code submitted" },
+  ],
+  introMechanism: [
+    {
+      body: (
+        <>
+          Not every claim is fraud. A good fraud detector must also{" "}
+          <span className="font-semibold text-[var(--risk-low)]">clear</span> the
+          legitimate ones — false positives erode trust faster than missed cases.
+        </>
+      ),
+    },
+    {
+      body: (
+        <>
+          This is the mirror image of an upcoding case: a diabetes follow-up billed at{" "}
+          <span className="font-mono">99214</span> where the note <span className="font-medium">actually</span>{" "}
+          documents moderate medical decision making. The coding expert agrees with the bill.{" "}
+          <span className="font-medium">When the documentation supports the code, there is no fraud.</span>
+        </>
+      ),
+    },
+  ],
+  mismatchTitle: "No mismatch: 99214 is supported",
+  mismatchSubtitle: "Moderate MDM is documented — the expert predicts the same code the provider billed.",
+  mismatchTruthValue: "99214 (correct)",
+  mismatchTruthCaption: "Moderate MDM: med change + outside-lab review + Rx management",
+  impactTitle: "Why this is legitimate",
+  impactSubtitle:
+    "99214 is the correct level for documented moderate decision making — a fair, supported payment.",
+  impactNodes: [
+    {
+      icon: CheckCircle2,
+      label: "99214 supported",
+      sub: "moderate MDM, fully documented",
+      color: "var(--risk-low)",
+      soft: "var(--risk-low-soft)",
+    },
+    {
+      icon: FileText,
+      label: "All dx grounded",
+      sub: "I10, E11.9, E78.5 each assessed",
+      color: "var(--risk-low)",
+      soft: "var(--risk-low-soft)",
+    },
+    {
+      icon: DollarSign,
+      label: "Legitimate payment",
+      sub: `${formatUSD(CLEAN_99214_FEE)} for a real, documented visit`,
+      color: "var(--risk-low)",
+      soft: "var(--risk-low-soft)",
+    },
+  ],
+  impactStats: [
+    { label: "Billed codes supported", value: "4 / 4" },
+    { label: "Expert agreement", value: "100%" },
+    { label: "99214 Medicare payment", value: formatUSD(CLEAN_99214_FEE) },
+  ],
+  impactInsight: (
+    <>
+      <span className="font-semibold">The key insight:</span> the note documents moderate medical decision
+      making across all three elements — a rising A1c with a{" "}
+      <span className="font-medium">medication change</span>, review of an{" "}
+      <span className="font-medium">outside-lab A1c and lipid panel</span>, and{" "}
+      <span className="font-medium">prescription drug management</span> (metformin increased, new higher-dose
+      statin). That is exactly what <span className="font-mono">99214</span> requires. The coding expert
+      predicts the same four codes the provider billed. <span className="font-medium">Supported codes are not fraud.</span>
+    </>
+  ),
+  verdictFacts: [
+    { icon: FileText, label: "Classification", value: "Clean Claim" },
+    { icon: CheckCircle2, label: "Verdict", value: "No Fraud" },
+    { icon: ScanSearch, label: "Codes supported", value: "4 / 4" },
+    { icon: DollarSign, label: "Legitimate payment", value: formatUSD(CLEAN_99214_FEE) },
+  ],
+  verdictConclusion: (
+    <>
+      <span className="font-semibold">All billed codes are fully supported by the note.</span> The encounter
+      documents moderate medical decision making — a rising A1c with a metformin dose increase, review of an
+      outside-lab A1c and lipid panel, and prescription drug management with a new higher-dose statin.{" "}
+      <span className="font-mono">99214</span> is the correct E/M level, and the diagnosis codes (I10, E11.9,
+      E78.5) are each assessed and managed. The coding expert predicts the same codes the provider billed.
+      This is a clean claim — a legitimate payment for a real, well-documented visit.
+    </>
+  ),
+  accentColor: "var(--risk-low)",
+  accentSoft: "var(--risk-low-soft)",
+};
+
+// ---------------------------------------------------------------------------
 // Registry — the presentation demo cases first (demo: true), then the rest.
 // The Live Demos hub shows a "Demo" badge on the demo:true cases.
 // ---------------------------------------------------------------------------
@@ -1282,6 +1459,7 @@ export const TOUR_CASES: TourCase[] = [
   UPCODING_001, // reserve — not in the presentation
   PHANTOM_004, // reserve
   CLONING_005, // reserve
+  CLEAN_014, // clean/contrast case — a legitimate 99214 the system clears (no fraud)
 ];
 
 const TOUR_CASE_MAP: Record<string, TourCase> = Object.fromEntries(

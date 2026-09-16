@@ -1,0 +1,101 @@
+{
+  "case_id": "case_clean_014",
+  "fraud_type": "clean",
+  "predicted_codes": {
+    "procedures": ["99214"],
+    "dx": ["I10", "E11.9", "E78.5"]
+  },
+  "analyses": [
+    {
+      "code": "I10",
+      "description": "Essential (primary) hypertension",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [
+        "Past medical history: Type 2 diabetes mellitus, essential hypertension, hyperlipidemia.",
+        "2. Essential hypertension - Well controlled on lisinopril 10 mg daily. Continue current regimen."
+      ],
+      "confidence": 0.96
+    },
+    {
+      "code": "E11.9",
+      "description": "Type 2 diabetes mellitus without complications",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [
+        "HbA1c 8.1% (up from 7.2% six months ago)",
+        "1. Type 2 diabetes mellitus - A1c has risen from 7.2% to 8.1%... Will increase metformin to 1500 mg BID with meals and recheck A1c in 3 months."
+      ],
+      "confidence": 0.97
+    },
+    {
+      "code": "E78.5",
+      "description": "Hyperlipidemia, unspecified",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [
+        "LDL 112, above goal for a diabetic patient (<100). Will increase atorvastatin to 40 mg nightly."
+      ],
+      "confidence": 0.95
+    },
+    {
+      "code": "99214",
+      "description": "Office visit, established patient, moderate complexity",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [
+        "Home glucose logs reviewed: fasting glucose 138 mg/dL average over the past 2 weeks.",
+        "HbA1c 8.1% (up from 7.2% six months ago), LDL 112...",
+        "Will increase metformin to 1500 mg BID with meals and recheck A1c in 3 months.",
+        "Will increase atorvastatin to 40 mg nightly. Discussed statin side effects to monitor (muscle aches)..."
+      ],
+      "confidence": 0.93,
+      "rationale": "99214 (established patient, moderate MDM) is fully supported. The note documents moderate complexity across all 3 MDM elements per the 2021+ AMA/CMS office-visit E/M rules: (1) multiple stable chronic conditions with progression (diabetes A1c rose 7.2%->8.1% requiring a medication change); (2) moderate data (review of an outside-lab A1c and lipid panel, plus home glucose logs); (3) moderate risk (prescription drug management requiring monitoring — metformin increased, new higher-dose statin). The coding expert predicts the same four codes the provider billed."
+    }
+  ],
+  "finding": {
+    "fraudType": "clean",
+    "verdict": "clean",
+    "confidence": 0.05,
+    "summary": "The documented encounter supports all billed codes. 99214 is the correct E/M level for the documented moderate medical decision making (a rising A1c with a medication change, outside-lab review, and prescription drug management). The diagnosis codes (I10, E11.9, E78.5) are each assessed and managed. The coding expert predicts the same codes the provider billed — no findings, no fraud.",
+    "details": [
+      {
+        "code": "I10",
+        "status": "supported",
+        "evidence": "Assessment documents essential hypertension, well controlled on lisinopril; continue current regimen."
+      },
+      {
+        "code": "E11.9",
+        "status": "supported",
+        "evidence": "Assessment documents Type 2 diabetes with A1c risen from 7.2% to 8.1%; metformin increased to 1500 mg BID."
+      },
+      {
+        "code": "E78.5",
+        "status": "supported",
+        "evidence": "Assessment documents hyperlipidemia with LDL 112 above goal for a diabetic; atorvastatin increased to 40 mg nightly."
+      },
+      {
+        "code": "99214",
+        "status": "supported",
+        "evidence": "Moderate MDM documented across all 3 elements: chronic condition progression (A1c up), moderate data (outside-lab A1c/lipid review + home logs), moderate risk (Rx management with dose increases and a new higher-dose statin)."
+      },
+      {
+        "finding": "clean",
+        "status": "clean",
+        "evidence": "All billed codes are fully supported by the note. The coding expert predicts the same codes the provider billed. This is a legitimate, well-documented claim — no fraud, no error."
+      }
+    ]
+  },
+  "legal_brief": "The documented encounter supports all billed codes. The note documents moderate medical decision making across all three elements of the 2021+ office-visit E/M guidelines: a rising A1c with a metformin dose increase (chronic condition progression), review of an outside-lab A1c and lipid panel plus home glucose logs (moderate data), and prescription drug management requiring monitoring with a new higher-dose statin (moderate risk). 99214 is the correct E/M level. The diagnosis codes (I10, E11.9, E78.5) are each assessed and managed. The coding expert predicts the same four codes the provider billed, with nothing unmatched. Fraud type: clean. Verdict: clean — no fraud, no error. This claim is legitimate and the payment is supported.\n\n",
+  "source": "live",
+  "detected": false,
+  "precomputed_at": "2026-09-16T10:30:00.000Z"
+}

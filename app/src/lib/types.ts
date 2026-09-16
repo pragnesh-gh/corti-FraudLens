@@ -6,7 +6,8 @@ export type FraudType =
   | "unbundling"
   | "phantom"
   | "dx_inflation"
-  | "cloning";
+  | "cloning"
+  | "clean";
 
 export type Severity = "fraud" | "error" | "clean";
 

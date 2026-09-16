@@ -918,7 +918,7 @@ export function getProviderAggregate(providerId: string): ProviderAggregate {
 
   const flaggedCases = provCases.filter((c) => (_results!.get(c.case_id)!.findings.length > 0));
   const flags_by_type: Record<FraudType, number> = {
-    upcoding: 0, unbundling: 0, phantom: 0, dx_inflation: 0, cloning: 0,
+    upcoding: 0, unbundling: 0, phantom: 0, dx_inflation: 0, cloning: 0, clean: 0,
   };
   for (const r of results) for (const f of r.findings) flags_by_type[f.fraud_type]++;
 
