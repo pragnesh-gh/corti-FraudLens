@@ -166,15 +166,25 @@ export function LiveDemoExperience({ tc }: { tc: TourCase }) {
         </div>
       </Card>
 
-      {/* Active tab content — keyed so the tour-step-in animation re-runs. */}
-      <div key={tab} className="tour-step-in">
-        {tab === "run" && (
-          <RunTab tc={tc} onRan={() => setHasRun(true)} hasRun={hasRun} onCompare={goCompare} />
-        )}
-        {tab === "compare" && <CompareTab tc={tc} onInvestigate={goInvestigate} />}
-        {tab === "investigate" && (
-          <InvestigateTab tc={tc} stage={invStage} setStage={setInvStage} onRestart={restart} />
-        )}
+      {/* Two-column workstation — coding-demo style.
+          Clinical note pinned LEFT (constant across tabs); the active tab's
+          work happens on the RIGHT. Collapses to a single column on small
+          screens so the note stacks above the work. The tab header/controls
+          above stay full-width and reachable. */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_1fr]">
+        <NotePanel tc={tc} />
+
+        {/* Right column — the active tab's work. Keyed so the tour-step-in
+            animation re-runs on tab change; the left note stays put. */}
+        <div key={tab} className="tour-step-in">
+          {tab === "run" && (
+            <RunTab tc={tc} onRan={() => setHasRun(true)} hasRun={hasRun} onCompare={goCompare} />
+          )}
+          {tab === "compare" && <CompareTab tc={tc} onInvestigate={goInvestigate} />}
+          {tab === "investigate" && (
+            <InvestigateTab tc={tc} stage={invStage} setStage={setInvStage} onRestart={restart} />
+          )}
+        </div>
       </div>
 
       {/* Footer exit */}
@@ -228,6 +238,54 @@ function LiveDemoHeader({ tc, tab }: { tc: TourCase; tab: Tab }) {
         </span>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// NotePanel — the pinned LEFT column. The clinical note (read-only reference),
+// kept in view across the Run/Compare/Investigate tabs so the work on the
+// right always has the note alongside. Mirrors the coding-demo's note card.
+// ---------------------------------------------------------------------------
+
+function NotePanel({ tc }: { tc: TourCase }) {
+  return (
+    <Card className="overflow-hidden xl:sticky xl:top-20 xl:self-start">
+      <CardHeader
+        title="Clinical note"
+        subtitle="The encounter documentation — read it as you work."
+        right={
+          <span className="inline-flex items-center gap-1 rounded-md bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-medium text-[var(--muted)]">
+            <FileText className="h-3 w-3" /> verbatim
+          </span>
+        }
+      />
+      <div className="max-h-[460px] overflow-y-auto px-5 py-4 text-sm">
+        <p className="whitespace-pre-wrap leading-relaxed text-[var(--foreground)]">{tc.noteText}</p>
+      </div>
+      {/* What was billed — a compact reference so the note + the bill are both
+          in view alongside the work on the right. */}
+      <div className="border-t border-[var(--border)] px-5 py-3">
+        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">
+          <Receipt className="h-3.5 w-3.5" /> Billed codes
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {tc.billedCodes.map((c) => (
+            <span
+              key={c.code}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md border px-2 py-1 font-mono text-[11px] font-semibold",
+                c.fraudulent
+                  ? "border-[var(--risk-high)]/40 bg-[var(--risk-high-soft)] text-[var(--risk-high)]"
+                  : "border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]",
+              )}
+              title={c.description}
+            >
+              {c.code}
+            </span>
+          ))}
+        </div>
+      </div>
+    </Card>
   );
 }
 
