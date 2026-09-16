@@ -24,14 +24,20 @@ import {
   BrainCircuit,
   Scissors,
   Ghost,
+  Copy,
 } from "lucide-react";
 import { formatUSD } from "@/lib/utils";
 import type { FraudType } from "@/lib/types";
 import type { TourCase } from "@/components/tour/tour-types";
 
-// Shared 7-step arc. Durations tuned to match the original tour. The verdict
-// step has duration 0 so auto-advance stops there.
-const STEP_IDS = ["intro", "note", "billed", "truth", "flag", "impact", "verdict"] as const;
+// Shared 7-step arc. The middle steps now show the DETECTION METHOD:
+//   intro → note → billed → predicted → retrace → impact → verdict
+// The "predicted" step shows what our coding expert predicted (set-intersection
+// compare); the "retrace" step shows the agentic framework reasoning about each
+// over-billed code. Both source from the real precomputed pipeline output
+// (getCaseResult), not hand-authored truth. Durations tuned to the original tour;
+// the verdict step has duration 0 so auto-advance stops there.
+const STEP_IDS = ["intro", "note", "billed", "predicted", "retrace", "impact", "verdict"] as const;
 
 function baseSteps(
   overrides: Partial<Record<(typeof STEP_IDS)[number], { title: string; subtitle: string; duration: number }>>,
@@ -40,8 +46,8 @@ function baseSteps(
     intro: { title: "The case", subtitle: "", duration: 2600 },
     note: { title: "The clinical note", subtitle: "What the chart actually documents. Read it carefully.", duration: 4200 },
     billed: { title: "What was billed", subtitle: "The submitted codes — the provider's transcript.", duration: 4200 },
-    truth: { title: "What the note supports", subtitle: "The correct codes slide over to align with their billed counterparts.", duration: 4200 },
-    flag: { title: "The mismatch", subtitle: "", duration: 5200 },
+    predicted: { title: "What our coding expert predicted", subtitle: "The codes our Corti coding model predicts from the note — set-intersected with the billed codes.", duration: 4200 },
+    retrace: { title: "The retrace agent", subtitle: "The agentic framework reasons about each over-billed code: is it defensible?", duration: 5600 },
     impact: { title: "Why it pays", subtitle: "", duration: 5600 },
     verdict: { title: "Verdict", subtitle: "", duration: 0 },
   };
@@ -93,10 +99,15 @@ const PADDING_002: TourCase = {
       subtitle: "A Medicare Advantage wellness visit — and a diagnosis that shouldn't be there.",
       duration: 2600,
     },
-    flag: {
-      title: "The mismatch",
-      subtitle: "N18.3 has no counterpart on the truth side — and no evidence in the note.",
-      duration: 5200,
+    predicted: {
+      title: "What our coding expert predicted",
+      subtitle: "No CKD diagnosis appears — the note supports hypertension and a wellness visit only.",
+      duration: 4200,
+    },
+    retrace: {
+      title: "The retrace agent",
+      subtitle: "N18.3 is over-billed. The agent asks: is a stage-3 CKD code defensible from this note?",
+      duration: 5600,
     },
     impact: {
       title: "Why it pays",
@@ -245,10 +256,15 @@ const UPCODING_001: TourCase = {
       subtitle: "A routine BP check — billed as heart disease it doesn't have.",
       duration: 2600,
     },
-    flag: {
-      title: "The mismatch",
-      subtitle: "I11.9 (hypertensive heart disease) has no cardiac findings in the note.",
-      duration: 5200,
+    predicted: {
+      title: "What our coding expert predicted",
+      subtitle: "The note supports essential hypertension (I10) only — no cardiac diagnosis.",
+      duration: 4200,
+    },
+    retrace: {
+      title: "The retrace agent",
+      subtitle: "I11.9 is over-billed. The agent asks: does the note support hypertensive heart disease?",
+      duration: 5600,
     },
     impact: {
       title: "Why an upcode pays",
@@ -400,10 +416,15 @@ const UNBUNDLING_003: TourCase = {
       subtitle: "Pre-op cardiac clearance — and an ECG billed twice.",
       duration: 2600,
     },
-    flag: {
-      title: "The mismatch",
-      subtitle: "93005 is the technical component already bundled into 93000 — billed again.",
-      duration: 5200,
+    predicted: {
+      title: "What our coding expert predicted",
+      subtitle: "The note supports a single ECG (93000) — the expert does not split the components.",
+      duration: 4200,
+    },
+    retrace: {
+      title: "The retrace agent",
+      subtitle: "93005 is over-billed. The agent asks: is the technical component separately defensible?",
+      duration: 5600,
     },
     impact: {
       title: "Why unbundling pays",
@@ -553,10 +574,15 @@ const PHANTOM_004: TourCase = {
       subtitle: "A cough visit — and an ECG that was never done.",
       duration: 2600,
     },
-    flag: {
-      title: "The mismatch",
-      subtitle: "93000 (ECG) was billed — but the note says no cardiac workup was performed.",
-      duration: 5200,
+    predicted: {
+      title: "What our coding expert predicted",
+      subtitle: "The note supports a cough visit — no ECG is predicted from the documentation.",
+      duration: 4200,
+    },
+    retrace: {
+      title: "The retrace agent",
+      subtitle: "93000 is over-billed. The agent asks: is an ECG defensible on a cough visit with no cardiac workup?",
+      duration: 5600,
     },
     impact: {
       title: "Why a phantom pays",
@@ -661,10 +687,173 @@ const PHANTOM_004: TourCase = {
 };
 
 // ---------------------------------------------------------------------------
+// 5. case_cloning_005 — cloning (FFS)
+//    A verbatim-cloned note billed at 99214 (high complexity) when the note
+//    supports 99213. The detector classified it as upcoding (the cloned note's
+//    higher E/M level) — fraud caught, category differs from the planted
+//    "cloning" label. The tour shows this honestly.
+// ---------------------------------------------------------------------------
+
+const PER_CLAIM_CLONE = 80; // 99214 vs 99213 E/M uplift
+const SIMILAR_CLONES = 30;
+const CLONE_IMPACT = 6000;
+
+const CLONING_005: TourCase = {
+  caseId: "case_cloning_005",
+  fraudType: "cloning",
+  billingModel: "fee_for_service",
+  billingModelLabel: "Fee-for-service · per-code payment",
+  teaser: "A routine follow-up note cloned verbatim across encounters — billed at a higher complexity than the note supports.",
+  noteText:
+    "CC: Routine follow-up.\n\nHistory: 71yo male, reports doing well. Denies chest pain, dyspnea, palpitations, edema, or headache. No new complaints.\n\nExam: BP 126/82, HR 70. Heart regular rate and rhythm, no murmurs, no S3/S4. Lungs clear bilaterally. No peripheral edema. No JVD.\n\nAssessment/Plan: 1. Essential hypertension, well-controlled - continue amlodipine, recheck in 6 months.",
+  correctCodes: [
+    { code: "I10", description: "Essential (primary) hypertension", fraudulent: false },
+    { code: "99213", description: "Office visit, established patient, low complexity", fraudulent: false },
+  ],
+  billedCodes: [
+    { code: "I10", description: "Essential (primary) hypertension", fraudulent: false },
+    {
+      code: "99214",
+      description: "Office visit, established patient, high complexity",
+      fraudulent: true,
+      flagReason:
+        "The note is a verbatim clone of other encounters (identical history and exam), boilerplate unedited from a template; and the note supports 99213, not 99214",
+    },
+  ],
+  fraudCode: "99214",
+  fraudConfidence: 0.84,
+  fraudGrounding: 0.08,
+  missingEvidenceSpans: [
+    "reports doing well... No new complaints.",
+    "Heart regular rate and rhythm, no murmurs, no S3/S4.",
+    "Essential hypertension, well-controlled - continue amlodipine, recheck in 6 months.",
+  ],
+  proofHeadline:
+    "Look for high-complexity medical decision-making — multiple unstable problems, significant data review, or high-risk management. There is none.",
+  proofBody:
+    "99214 requires moderate-to-high complexity MDM. The note documents one stable, well-controlled condition with a simple plan — that supports 99213, not 99214. The verbatim-identical text across encounters is the cloning signal.",
+  steps: baseSteps({
+    intro: {
+      title: "The case",
+      subtitle: "A routine follow-up note — identical to other encounters, billed a level up.",
+      duration: 2600,
+    },
+    predicted: {
+      title: "What our coding expert predicted",
+      subtitle: "The note supports 99213 (low complexity) — not the billed 99214.",
+      duration: 4200,
+    },
+    retrace: {
+      title: "The retrace agent",
+      subtitle: "99214 is over-billed. The agent asks: does the note support high-complexity decision-making?",
+      duration: 5600,
+    },
+    impact: {
+      title: "Why cloning pays",
+      subtitle: "A cloned note lets a provider bill the same higher-level E/M across many patients.",
+      duration: 5600,
+    },
+    verdict: {
+      title: "Verdict",
+      subtitle: "Cloning · Likely Fraud · boilerplate documentation billed at a higher level.",
+      duration: 0,
+    },
+  }),
+  introFacts: [
+    { icon: Stethoscope, label: "Visit type", value: "Routine follow-up" },
+    { icon: HeartPulse, label: "Patient", value: "71yo male, BP controlled on amlodipine" },
+    { icon: FileText, label: "Payer model", value: "Fee-for-service — paid per code submitted" },
+  ],
+  introMechanism: [
+    {
+      body: (
+        <>
+          <span className="font-semibold">Cloning</span> means copy-pasting the same note across
+          encounters — sometimes verbatim, sometimes with a tweak. It lets a provider bill the same{" "}
+          <span className="font-medium text-[var(--foreground)]">higher-level E/M code</span> for many
+          patients with no individualized documentation.
+        </>
+      ),
+    },
+    {
+      body: (
+        <>
+          Here, a routine hypertension follow-up is billed as{" "}
+          <span className="font-mono">99214</span> (high complexity) when the note supports{" "}
+          <span className="font-mono">99213</span> (low complexity). The verbatim-identical text is the
+          tell. <span className="font-medium">The cloned code is the money.</span>
+        </>
+      ),
+    },
+  ],
+  mismatchTitle: "The mismatch: 99214",
+  mismatchSubtitle: "Billed as high complexity — with one stable, well-controlled condition.",
+  mismatchTruthValue: "99213 only",
+  mismatchTruthCaption: "Low-complexity follow-up, no high MDM",
+  impactTitle: "Why cloning pays",
+  impactSubtitle:
+    "Cloned notes compound: the same higher-level E/M billed across many patients with no extra work.",
+  impactNodes: [
+    {
+      icon: Copy,
+      label: "99214 submitted",
+      sub: "a higher-complexity E/M",
+      color: "var(--fraud-cloning)",
+      soft: "var(--risk-med-soft)",
+    },
+    {
+      icon: Copy,
+      label: "Note cloned",
+      sub: "verbatim across encounters",
+      color: "var(--accent)",
+      soft: "var(--accent-soft)",
+    },
+    {
+      icon: DollarSign,
+      label: "E/M fee ↑",
+      sub: `+${formatUSD(PER_CLAIM_CLONE)}/claim per clone`,
+      color: "var(--risk-high)",
+      soft: "var(--risk-high-soft)",
+    },
+  ],
+  impactStats: [
+    { label: "Per-claim E/M uplift", value: formatUSD(PER_CLAIM_CLONE) },
+    { label: "Similar cloned claims", value: `${SIMILAR_CLONES}` },
+    { label: "Projected impact", value: formatUSD(CLONE_IMPACT, true), danger: true },
+  ],
+  impactInsight: (
+    <>
+      <span className="font-semibold">The key insight:</span> no extra work was done — the note is
+      boilerplate cloned across encounters. But billing{" "}
+      <span className="font-mono font-semibold text-[var(--risk-high)]">99214</span> instead of{" "}
+      <span className="font-mono">99213</span> lifts the E/M fee on every cloned claim.{" "}
+      <span className="font-medium">The cloned code is the money.</span>
+    </>
+  ),
+  verdictFacts: [
+    { icon: FileText, label: "Fraud type", value: "Cloning" },
+    { icon: Gavel, label: "Intent", value: "Likely Fraud" },
+    { icon: DollarSign, label: "Projected impact", value: formatUSD(CLONE_IMPACT, true), money: true },
+    { icon: ScanSearch, label: "Evidence", value: "Verbatim-cloned note" },
+  ],
+  verdictConclusion: (
+    <>
+      <span className="font-semibold">The note is a verbatim clone.</span> It documents one stable,
+      well-controlled condition with a simple plan — that supports{" "}
+      <span className="font-mono">99213</span>, not the billed <span className="font-mono">99214</span>.
+      The identical text across encounters is the cloning signal, and the higher E/M level is where the
+      money is.
+    </>
+  ),
+  accentColor: "var(--fraud-cloning)",
+  accentSoft: "var(--risk-med-soft)",
+};
+
+// ---------------------------------------------------------------------------
 // Registry — ordered so the diagnosis-padding tour is the default/first.
 // ---------------------------------------------------------------------------
 
-export const TOUR_CASES: TourCase[] = [PADDING_002, UPCODING_001, UNBUNDLING_003, PHANTOM_004];
+export const TOUR_CASES: TourCase[] = [PADDING_002, UPCODING_001, UNBUNDLING_003, PHANTOM_004, CLONING_005];
 
 const TOUR_CASE_MAP: Record<string, TourCase> = Object.fromEntries(
   TOUR_CASES.map((tc) => [tc.caseId, tc]),
