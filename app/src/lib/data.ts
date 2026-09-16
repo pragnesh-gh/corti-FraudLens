@@ -773,23 +773,64 @@ export function getPrecomputedResults(): Map<string, CaseResult> {
 /** Normalize a precomputed JSON blob into a CaseResult. */
 function normalizePrecomputed(data: Record<string, unknown>): CaseResult {
   const analyses = (data.analyses as CodeAnalysis[] | undefined) ?? [];
-  const finding = (data.finding as { findings?: unknown[]; summary?: string; confidence?: number } | undefined) ?? {};
-  const findings = (finding.findings as Finding[] | undefined) ?? [];
+  // The precomputed JSON stores the case-level finding under `finding` (singular):
+  //   { fraudType, verdict, confidence, summary, details[] }
+  // (NOT a nested `findings[]` array). Synthesize a proper Finding[] so downstream
+  // readers — the verdict card, the legal brief, the queue — see result.findings[0]
+  // with the detector's actual category + verdict + confidence. Without this,
+  // result.findings was always [] for precomputed cases, so the verdict card fell
+  // back to "clean" even though the detector had found fraud.
+  const rawFinding = (data.finding as {
+    fraudType?: FraudType;
+    verdict?: string;
+    confidence?: number;
+    summary?: string;
+  } | undefined);
+  // Prefer the DETECTOR's own category (finding.fraudType) — this is the honest
+  // verdict the UI should show, even when it differs from the planted type (the
+  // verdict card surfaces that as a "category mismatch" badge). Fall back to the
+  // top-level data.fraud_type only when valid (some files use a non-union label
+  // like "diagnosis_padding" — invalid as a FraudType, so skip it).
+  const VALID_TYPES: FraudType[] = ["upcoding", "unbundling", "phantom", "dx_inflation", "cloning"];
+  const topType = (data.fraud_type as FraudType | undefined);
+  const caseFraudType = rawFinding?.fraudType
+    ?? (topType && VALID_TYPES.includes(topType) ? topType : undefined);
+  const verdict = rawFinding?.verdict ?? "fraud";
+  const confidence = rawFinding?.confidence ?? 0;
+  const intent: "fraud" | "error" = verdict === "error" ? "error" : "fraud";
+  const overBilled = analyses.filter((a) => a.match === "extra" || a.match === "mismatch");
+  const primaryCode = overBilled[0]?.code ?? "";
+  const findings: Finding[] = caseFraudType
+    ? [{
+        code: primaryCode,
+        fraud_type: caseFraudType,
+        confidence,
+        grounding_score: overBilled[0]?.grounding === "supported" ? 0.9
+          : overBilled[0]?.grounding === "weakly_supported" ? 0.5
+          : overBilled[0]?.grounding === "contradicted" ? 0.1 : 0.2,
+        dollar_impact: 0,
+        rationale: rawFinding?.summary ?? "",
+        evidence_spans: [],
+        agent_trace: [],
+        intent,
+        analysis: overBilled[0],
+      }]
+    : [];
   const trace = [
     { id: "facts", title: "Extract clinical facts", status: "done" as const, summary: "Facts extracted via /v2/tools/extract-facts.", duration_ms: 1100 },
     { id: "coding", title: "Predict medical codes", status: "done" as const, summary: "Coding model predicted codes from the note.", duration_ms: 950 },
-    { id: "grounding", title: "Ground unmatched codes", status: "done" as const, summary: `Retraced ${analyses.filter((a) => a.match === "extra").length} billed-not-predicted codes.`, duration_ms: 1300 },
+    { id: "grounding", title: "Ground unmatched codes", status: "done" as const, summary: `Retraced ${overBilled.length} billed-not-predicted codes.`, duration_ms: 1300 },
     { id: "verify", title: "Extended chart verification", status: "done" as const, summary: "Patient journal reviewed.", duration_ms: 1500 },
-    { id: "judgement", title: "Fraud vs error judgement", status: "done" as const, summary: finding.summary ?? "Classified.", duration_ms: 1200 },
+    { id: "judgement", title: "Fraud vs error judgement", status: "done" as const, summary: rawFinding?.summary ?? "Classified.", duration_ms: 1200 },
     { id: "impact", title: "Assess economic impact", status: "done" as const, summary: "Overpayment computed.", duration_ms: 800 },
   ];
   return {
     case_id: data.case_id as string,
     predicted_codes: { dx: [], procedures: [] },
     findings,
-    case_summary: finding.summary ?? "",
+    case_summary: rawFinding?.summary ?? "",
     total_impact: findings.reduce((s, f) => s + f.dollar_impact, 0),
-    max_confidence: finding.confidence ?? 0,
+    max_confidence: confidence,
     agent_trace: trace,
     code_analyses: analyses,
     legal_brief: data.legal_brief as string | undefined,
