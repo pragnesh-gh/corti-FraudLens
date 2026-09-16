@@ -32,10 +32,15 @@ import {
   Receipt,
   BrainCircuit,
   Microscope,
+  ScanLine,
+  Scale,
+  ShieldCheck,
 } from "lucide-react";
 import type { TourCase } from "./tour-types";
 import { CodeCard, SeverityMeter, DeltaChip, ConfidenceGauge } from "./tour-widgets";
 import { TryItYourself } from "./try-it-yourself";
+import { getCaseResult } from "@/lib/data";
+import type { CaseResult, CodeAnalysis } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // TourEngine — the deterministic step runner + controls + header.
@@ -46,11 +51,28 @@ const STEP_RENDERERS: Record<string, (tc: TourCase, onReplay: () => void) => Rea
   intro: (tc) => <IntroStep tc={tc} />,
   note: (tc) => <NoteStep tc={tc} />,
   billed: (tc) => <BilledStep tc={tc} />,
-  truth: (tc) => <TruthStep tc={tc} />,
-  flag: (tc) => <FlagStep tc={tc} />,
+  // Method steps (replacing the old truth-reveal + flag steps): the tour now
+  // shows what our coding expert PREDICTED, then how the retrace agent REASONS
+  // about each over-billed code — sourced from the real precomputed pipeline.
+  predicted: (tc) => <PredictedStep tc={tc} />,
+  retrace: (tc) => <RetraceStep tc={tc} />,
   impact: (tc) => <ImpactStep tc={tc} />,
   verdict: (tc, onReplay) => <VerdictStep tc={tc} onReplay={onReplay} />,
 };
+
+/** Load the detector's real pipeline output for this tour case (precomputed
+ *  preferred, falls back to replay). Returns null if unavailable. */
+function useDetectorResult(caseId: string): CaseResult | null {
+  return useMemo(() => getCaseResult(caseId) ?? null, [caseId]);
+}
+
+/** Bucket the per-code analyses into the set-intersection comparison. */
+function bucketAnalyses(analyses: CodeAnalysis[]) {
+  const matched = analyses.filter((a) => a.match === "exact");
+  const overBilled = analyses.filter((a) => a.match === "extra" || a.match === "mismatch");
+  const underBilled = analyses.filter((a) => a.match === "missing");
+  return { matched, overBilled, underBilled };
+}
 
 export function TourEngine({ tc }: { tc: TourCase }) {
   const steps = tc.steps;
@@ -460,25 +482,34 @@ function BilledStep({ tc }: { tc: TourCase }) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 4 — Truth column slides over to align
+// Step 4 — Predicted: what our coding expert predicted (set-intersection compare)
 // ---------------------------------------------------------------------------
 
-function TruthStep({ tc }: { tc: TourCase }) {
-  const [aligned, setAligned] = useState(0);
-  useEffect(() => {
-    setAligned(0);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    tc.correctCodes.forEach((_, i) => {
-      timers.push(setTimeout(() => setAligned(i + 1), 500 + i * 700));
-    });
-    return () => timers.forEach(clearTimeout);
-  }, [tc.correctCodes]);
+function PredictedStep({ tc }: { tc: TourCase }) {
+  const result = useDetectorResult(tc.caseId);
+  const [revealed, setRevealed] = useState(0);
 
-  // Pair billed codes with correct codes by index. The fraud code has no
-  // counterpart on the truth side — that's the point.
+  // The predicted codes come from the real precomputed pipeline (codes.predict
+  // + the coding-expert agent). We bucket the per-code analyses to show the
+  // set intersection: matched / over-billed / under-billed.
+  const analyses = result?.code_analyses ?? [];
+  const { matched, overBilled, underBilled } = useMemo(() => bucketAnalyses(analyses), [analyses]);
+
+  useEffect(() => {
+    setRevealed(0);
+    const total = matched.length + overBilled.length + underBilled.length;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    for (let i = 0; i < total + 1; i++) {
+      timers.push(setTimeout(() => setRevealed(i + 1), 450 + i * 520));
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [matched.length, overBilled.length, underBilled.length]);
+
+  const predictedCount = matched.length + underBilled.length;
+
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {/* Billed (transcript) */}
+      {/* What was billed */}
       <Card className="overflow-hidden">
         <CardHeader
           title="What was billed"
@@ -491,61 +522,87 @@ function TruthStep({ tc }: { tc: TourCase }) {
         />
         <div className="space-y-2 p-4">
           {tc.billedCodes.map((c, i) => (
-            <CodeCard key={c.code} code={c} column="billed" index={i} matched={i < aligned} />
+            <CodeCard key={c.code} code={c} column="billed" index={i} />
           ))}
         </div>
       </Card>
 
-      {/* Truth */}
-      <Card className="overflow-hidden">
+      {/* What our coding expert predicted */}
+      <Card className="overflow-hidden border-dashed">
         <CardHeader
-          title="What the note supports"
-          subtitle={`${tc.correctCodes.length} code${tc.correctCodes.length === 1 ? "" : "s"} the note actually justifies — sliding over to align.`}
+          title="What our coding expert predicted"
+          subtitle={`${predictedCount} code${predictedCount === 1 ? "" : "s"} from the note — via Corti medical coding.`}
           right={
-            <span className="inline-flex items-center gap-1 rounded-md bg-[var(--risk-low-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--risk-low)]">
-              <Check className="h-3 w-3" /> grounded
+            <span className="inline-flex items-center gap-1 rounded-md bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--accent)]">
+              <ScanLine className="h-3 w-3" /> predicted
             </span>
           }
         />
         <div className="space-y-2 p-4">
-          {tc.correctCodes.map((c, i) => (
-            <div key={c.code} className={cn(i < aligned && "tour-slide-over")}>
-              <CodeCard code={c} column="truth" index={i} matched />
+          {matched.map((a, i) => (
+            <div key={a.code} className={cn(i < revealed && "tour-slide-over")}>
+              <CodeCard
+                code={{ code: a.code, description: a.description, fraudulent: false }}
+                column="truth"
+                index={i}
+                matched
+              />
             </div>
           ))}
-          {/* The empty counterpart for the fraud code */}
-          {aligned >= tc.correctCodes.length && (
+          {underBilled.length > 0 && (
+            <div className="mt-1 text-[11px] font-medium text-[var(--muted-2)]">
+              Predicted but not billed (under-billed):
+            </div>
+          )}
+          {underBilled.map((a, i) => (
+            <div key={a.code} className={cn(i < revealed && "tour-slide-over")}>
+              <CodeCard
+                code={{ code: a.code, description: a.description, fraudulent: false }}
+                column="truth"
+                index={i}
+                matched
+              />
+            </div>
+          ))}
+          {revealed > matched.length + underBilled.length && overBilled.length > 0 && (
             <div className="tour-slide-over flex h-[88px] items-center justify-center rounded-lg border-2 border-dashed border-[var(--risk-high)]/40 bg-[var(--risk-high-soft)]/40">
               <div className="flex items-center gap-2 text-sm font-medium text-[var(--risk-high)]">
-                <X className="h-4 w-4" />
-                No counterpart for {tc.fraudCode}
+                <AlertTriangle className="h-4 w-4" />
+                {overBilled.length} billed code{overBilled.length === 1 ? "" : "s"} we did not predict
               </div>
             </div>
           )}
         </div>
       </Card>
 
-      {/* Match summary */}
-      {aligned >= tc.correctCodes.length && (
+      {/* Set-intersection summary */}
+      {revealed > matched.length + underBilled.length + overBilled.length && (
         <div className="animate-fade-rise lg:col-span-2">
           <Card className="px-4 py-3">
             <div className="flex flex-wrap items-center gap-4 text-sm">
-              {tc.correctCodes.map((c) => (
-                <div key={c.code} className="flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--risk-low-soft)] text-[var(--risk-low)]">
-                    <Check className="h-4 w-4" />
-                  </span>
-                  <span className="font-medium text-[var(--foreground)]">{c.code}</span>
-                  <span className="text-[var(--muted)]">matches</span>
-                </div>
-              ))}
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--risk-low-soft)] text-[var(--risk-low)]">
+                  <Check className="h-4 w-4" />
+                </span>
+                <span className="font-medium text-[var(--foreground)]">{matched.length}</span>
+                <span className="text-[var(--muted)]">matched (common)</span>
+              </div>
               <div className="flex items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--risk-high-soft)] text-[var(--risk-high)]">
-                  <X className="h-4 w-4" />
+                  <AlertTriangle className="h-4 w-4" />
                 </span>
-                <span className="font-medium text-[var(--risk-high)]">{tc.fraudCode}</span>
-                <span className="text-[var(--muted)]">no supporting evidence</span>
+                <span className="font-medium text-[var(--risk-high)]">{overBilled.length}</span>
+                <span className="text-[var(--muted)]">over-billed → investigate</span>
               </div>
+              {underBilled.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
+                    <ScanLine className="h-4 w-4" />
+                  </span>
+                  <span className="font-medium text-[var(--foreground)]">{underBilled.length}</span>
+                  <span className="text-[var(--muted)]">under-billed</span>
+                </div>
+              )}
             </div>
           </Card>
         </div>
@@ -555,112 +612,220 @@ function TruthStep({ tc }: { tc: TourCase }) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 5 — The mismatch: severity widgets + missing-evidence highlight
+// Step 5 — Retrace: the agentic framework reasons about each over-billed code
 // ---------------------------------------------------------------------------
 
-function FlagStep({ tc }: { tc: TourCase }) {
+const GROUNDING_LABEL: Record<CodeAnalysis["grounding"], { label: string; tone: "high" | "med" | "low" }> = {
+  supported: { label: "Supported", tone: "low" },
+  weakly_supported: { label: "Weakly supported", tone: "med" },
+  unsupported: { label: "Unsupported", tone: "high" },
+  contradicted: { label: "Contradicted", tone: "high" },
+};
+
+function RetraceStep({ tc }: { tc: TourCase }) {
+  const result = useDetectorResult(tc.caseId);
+  const analyses = result?.code_analyses ?? [];
+  const { overBilled } = useMemo(() => bucketAnalyses(analyses), [analyses]);
+  const [revealed, setRevealed] = useState(0);
+
+  useEffect(() => {
+    setRevealed(0);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    overBilled.forEach((_, i) => {
+      timers.push(setTimeout(() => setRevealed(i + 1), 600 + i * 900));
+    });
+    return () => timers.forEach(clearTimeout);
+  }, [overBilled]);
+
+  const finding = result?.findings[0];
+  const verdict = finding?.analysis?.verdict ?? finding?.intent;
+
   return (
     <div className="space-y-4">
-      {/* The flagged comparison row */}
       <Card className="overflow-hidden">
         <CardHeader
-          title={tc.mismatchTitle}
-          subtitle={tc.mismatchSubtitle}
+          title="The retrace agent reasons about each over-billed code"
+          subtitle="The agentic framework asks: is this code defensible from the note?"
           right={
-            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--risk-high)]/30 bg-[var(--risk-high-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--risk-high)]">
-              <AlertTriangle className="h-3 w-3" /> no evidence
+            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">
+              <BrainCircuit className="h-3 w-3" /> agentic
             </span>
           }
         />
-        <div className="grid grid-cols-1 gap-px sm:grid-cols-2">
-          <div className="tour-flag-pulse bg-[var(--risk-high-soft)]/40 px-4 py-4">
-            <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">
-              {tc.mismatchBilledLabel ?? "Billed (transcript)"}
+        <div className="space-y-4 p-5">
+          {overBilled.length === 0 && (
+            <div className="py-6 text-center text-sm text-[var(--muted)]">
+              No over-billed codes to retrace — the billed codes all match the note.
             </div>
-            <div className="mt-1 font-mono text-base font-bold text-[var(--risk-high)]">{tc.fraudCode}</div>
-            <div className="text-xs text-[var(--muted)]">
-              {tc.billedCodes.find((c) => c.fraudulent)?.description ?? ""}
-            </div>
-          </div>
-          <div className="border-l border-[var(--border)] px-4 py-4">
-            <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">
-              Note supports (truth)
-            </div>
-            <div className="mt-1 flex items-center gap-2 text-sm font-medium text-[var(--risk-high)]">
-              <X className="h-4 w-4" /> {tc.mismatchTruthValue}
-            </div>
-            <div className="text-xs text-[var(--muted)]">{tc.mismatchTruthCaption}</div>
-          </div>
-        </div>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {/* Severity widgets */}
-        <Card className="p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--risk-high-soft)] text-[var(--risk-high)]">
-              <TrendingUp className="h-4 w-4" />
-            </span>
-            <div>
-              <div className="text-sm font-semibold text-[var(--foreground)]">Fraud confidence</div>
-              <div className="text-[11px] text-[var(--muted)]">How sure the agent is this is fraud</div>
-            </div>
-          </div>
-          <SeverityMeter value={tc.fraudConfidence} tone="high" label="Confidence" />
-        </Card>
-
-        <Card className="p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--risk-high-soft)] text-[var(--risk-high)]">
-              <ScanSearch className="h-4 w-4" />
-            </span>
-            <div>
-              <div className="text-sm font-semibold text-[var(--foreground)]">Note grounding</div>
-              <div className="text-[11px] text-[var(--muted)]">How well the note supports {tc.fraudCode}</div>
-            </div>
-          </div>
-          <SeverityMeter value={tc.fraudGrounding} tone="high" label="Grounding" invert />
-        </Card>
-
-        <Card className="p-4">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-[var(--risk-high-soft)] text-[var(--risk-high)]">
-              <Gavel className="h-4 w-4" />
-            </span>
-            <div>
-              <div className="text-sm font-semibold text-[var(--foreground)]">Delta</div>
-              <div className="text-[11px] text-[var(--muted)]">Billed vs correct</div>
-            </div>
-          </div>
-          <DeltaChip billed={tc.fraudCode} correct="—" tone="high" />
-          <ConfidenceGauge value={tc.fraudConfidence} />
-        </Card>
-      </div>
-
-      {/* Missing-evidence proof in the note */}
-      <Card className="overflow-hidden">
-        <CardHeader
-          title="Proof: the note says the opposite"
-          subtitle="These spans explicitly show no supporting evidence."
-        />
-        <div className="px-5 py-4">
-          <div className="space-y-2 font-mono text-[13px] leading-relaxed">
-            {tc.missingEvidenceSpans.map((s, i) => (
+          )}
+          {overBilled.map((a, i) => {
+            const g = GROUNDING_LABEL[a.grounding];
+            const isShown = i < revealed;
+            return (
               <div
-                key={i}
-                className="tour-highlight-sweep flex items-start gap-2 rounded-md px-2 py-1.5"
-                style={{ animationDelay: `${i * 200}ms` }}
+                key={a.code}
+                className={cn(
+                  "rounded-lg border p-4 transition-all",
+                  isShown ? "tour-slide-over opacity-100" : "opacity-0",
+                  a.grounding === "contradicted" || a.grounding === "unsupported"
+                    ? "border-[var(--risk-high)]/30 bg-[var(--risk-high-soft)]/30"
+                    : "border-[var(--border)] bg-[var(--surface)]",
+                )}
               >
-                <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full bg-[var(--risk-high)] text-white">
-                  <X className="h-2.5 w-2.5" />
-                </span>
-                <span className="text-[var(--foreground)]">{s}</span>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-base font-bold text-[var(--foreground)]">{a.code}</span>
+                    <span className="text-xs text-[var(--muted)]">{a.description}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                        g.tone === "high"
+                          ? "bg-[var(--risk-high-soft)] text-[var(--risk-high)]"
+                          : g.tone === "med"
+                            ? "bg-[var(--risk-med-soft)] text-[var(--risk-med)]"
+                            : "bg-[var(--risk-low-soft)] text-[var(--risk-low)]",
+                      )}
+                    >
+                      <ScanSearch className="h-3 w-3" /> {g.label}
+                    </span>
+                  </div>
+                </div>
+
+                {isShown && a.rationale && (
+                  <p className="mt-3 text-sm leading-relaxed text-[var(--foreground)]">{a.rationale}</p>
+                )}
+
+                {isShown && a.noteExcerpts.length > 0 && (
+                  <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">
+                      Note excerpts cited by the agent
+                    </p>
+                    <div className="space-y-1.5 font-mono text-[13px] leading-relaxed">
+                      {a.noteExcerpts.slice(0, 4).map((ex, j) => (
+                        <div
+                          key={j}
+                          className="tour-highlight-sweep flex items-start gap-2 rounded-md px-2 py-1.5"
+                          style={{ animationDelay: `${j * 200}ms` }}
+                        >
+                          <span
+                            className={cn(
+                              "mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full text-white",
+                              a.grounding === "contradicted" || a.grounding === "unsupported"
+                                ? "bg-[var(--risk-high)]"
+                                : "bg-[var(--risk-med)]",
+                            )}
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </span>
+                          <span className="text-[var(--foreground)]">“{ex}”</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {isShown && (
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <Card className="p-3">
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--risk-high-soft)] text-[var(--risk-high)]">
+                          <Gavel className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">
+                          Agreeability
+                        </span>
+                      </div>
+                      <SeverityMeter
+                        value={a.agreeability / 100}
+                        tone="high"
+                        label="Defensibility"
+                        invert
+                        caption={`${a.agreeability}/100 — ${a.agreeability < 30 ? "not defensible" : a.agreeability < 70 ? "weakly defensible" : "defensible"}`}
+                      />
+                    </Card>
+                    <Card className="p-3">
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--risk-high-soft)] text-[var(--risk-high)]">
+                          <ScanSearch className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">
+                          Grounding
+                        </span>
+                      </div>
+                      <SeverityMeter
+                        value={a.confidence}
+                        tone={g.tone}
+                        label="Confidence"
+                        caption={`Agent confidence: ${g.label.toLowerCase()}`}
+                      />
+                    </Card>
+                    <Card className="p-3">
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--risk-high-soft)] text-[var(--risk-high)]">
+                          <TrendingUp className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">
+                          Verdict
+                        </span>
+                      </div>
+                      <DeltaChip
+                        billed={a.code}
+                        correct={a.predicted ? "predicted" : "not predicted"}
+                        tone={a.grounding === "contradicted" || a.grounding === "unsupported" ? "high" : "med"}
+                      />
+                      <ConfidenceGauge value={a.confidence} />
+                    </Card>
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-          <p className="mt-3 text-xs text-[var(--muted)]">{tc.proofBody}</p>
+            );
+          })}
         </div>
       </Card>
+
+      {/* Case-level judgement from the agentic framework */}
+      {result && revealed >= overBilled.length && overBilled.length > 0 && (
+        <div className="animate-fade-rise">
+          <Card className="overflow-hidden">
+            <CardHeader
+              title="The judgement agent's verdict"
+              subtitle="Aggregates the per-code retraces into a case-level classification"
+              right={
+                <span className="inline-flex items-center gap-1 rounded-full border border-[var(--risk-high)]/30 bg-[var(--risk-high-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--risk-high)]">
+                  <Gavel className="h-3 w-3" /> judgement
+                </span>
+              }
+            />
+            <div className="p-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <FraudChip type={(finding?.fraud_type ?? tc.fraudType)} />
+                <IntentBadge intent={verdict === "fraud" ? "fraud" : verdict === "error" ? "error" : "clean"} />
+                <span className="text-xs text-[var(--muted-2)]">
+                  Confidence <span className="font-semibold text-[var(--foreground)]">{finding ? Math.round(finding.confidence * 100) : 0}%</span>
+                </span>
+                {typeof result.detected === "boolean" && (
+                  <span
+                    className={cn(
+                      "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                      result.detected
+                        ? "bg-[var(--risk-low-soft)] text-[var(--risk-low)]"
+                        : "bg-[var(--risk-med-soft)] text-[var(--risk-med)]",
+                    )}
+                  >
+                    <ShieldCheck className="h-3 w-3" />
+                    {result.detected ? "Detector matched planted fraud" : "Fraud caught"}
+                  </span>
+                )}
+              </div>
+              {finding?.rationale && (
+                <p className="mt-3 text-sm leading-relaxed text-[var(--foreground)]">{finding.rationale}</p>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
@@ -788,16 +953,50 @@ function ImpactStep({ tc }: { tc: TourCase }) {
 // ---------------------------------------------------------------------------
 
 function VerdictStep({ tc, onReplay }: { tc: TourCase; onReplay: () => void }) {
+  const result = useDetectorResult(tc.caseId);
+  const finding = result?.findings[0];
+  const detectorCategory = finding?.fraud_type;
+  const detectorVerdict = finding?.analysis?.verdict ?? finding?.intent;
+  // Show the detector's actual category when it differs from the tour's framing.
+  const categoryMismatch = detectorCategory && detectorCategory !== tc.fraudType;
   return (
     <div className="space-y-4">
       <Card className="overflow-hidden">
-        <CardHeader title="Verdict" subtitle="The full picture, on one card." />
+        <CardHeader title="Verdict" subtitle="The detector's finding — and the full picture on one card." />
         <div className="p-5">
           <div className="flex flex-wrap items-center gap-3">
-            <FraudChip type={tc.fraudType} />
-            <IntentBadge intent="fraud" />
+            {/* Prefer the detector's actual category; fall back to the tour framing. */}
+            <FraudChip type={detectorCategory ?? tc.fraudType} />
+            <IntentBadge
+              intent={detectorVerdict === "fraud" ? "fraud" : detectorVerdict === "error" ? "error" : "clean"}
+            />
             <span className="font-mono text-xs text-[var(--muted)]">{tc.caseId}</span>
+            {typeof result?.detected === "boolean" && (
+              <span
+                className={cn(
+                  "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                  result.detected
+                    ? "bg-[var(--risk-low-soft)] text-[var(--risk-low)]"
+                    : "bg-[var(--risk-med-soft)] text-[var(--risk-med)]",
+                )}
+                title={result.detected ? "Detector independently arrived at the planted fraud type" : "Fraud detected, but category differs from the planted type"}
+              >
+                <ShieldCheck className="h-3 w-3" />
+                {result.detected ? "Detector matched planted fraud" : "Fraud caught"}
+              </span>
+            )}
           </div>
+
+          {/* If the detector's category differs from the tour's planted type, say so honestly. */}
+          {categoryMismatch && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-[var(--risk-med)]/30 bg-[var(--risk-med-soft)]/50 px-3 py-2 text-xs text-[var(--risk-med)]">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-none" />
+              <span>
+                The detector classified this as <span className="font-semibold">{detectorCategory}</span> rather than the
+                planted <span className="font-mono">{tc.fraudType}</span> — it caught the fraud, with a different category label.
+              </span>
+            </div>
+          )}
 
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {tc.verdictFacts.map((s, i) => {
@@ -833,6 +1032,21 @@ function VerdictStep({ tc, onReplay }: { tc: TourCase; onReplay: () => void }) {
               <p className="text-sm leading-relaxed text-[var(--foreground)]">{tc.verdictConclusion}</p>
             </div>
           </div>
+
+          {/* Case referral brief — first-class textgen output (sober/printable). */}
+          {result?.legal_brief && (
+            <div className="surface-sober mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+              <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">
+                <Scale className="h-3.5 w-3.5 text-[var(--accent)]" /> Case referral brief
+                <span className="font-normal normal-case tracking-normal text-[var(--muted-2)]">
+                  · generated by textgen (Guided Docs) · preliminary, not a determination
+                </span>
+              </div>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--foreground)] print-sober">
+                {result.legal_brief}
+              </p>
+            </div>
+          )}
         </div>
       </Card>
 

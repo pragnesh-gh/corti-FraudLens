@@ -138,6 +138,8 @@ export interface CodeAnalysis {
   verdict?: "fraud" | "error" | "clean";
   /** Confidence 0-1. */
   confidence: number;
+  /** Plain-language reasoning from the retrace agent (when present). */
+  rationale?: string;
 }
 
 /** A per-code finding produced by the agentic pipeline. */
