@@ -69,15 +69,21 @@
   --fraud-cloning: #a9c2ff; /* light periwinkle — cloning */
   --fraud-cloning-soft: rgba(169, 194, 255, 0.14);
 
-  /* ---- Shadow & depth (opaque surface-tier contrast, NOT glow) ----
-     Per Obsidian Sunset: depth comes from surface luminosity tiers + a 1px
-     inset top-edge specularity highlight. Colored glow is rationed to ≤2
-     hero accents per view (active item, primary CTA), not applied broadly. */
-  --glow-accent: 0 0 0 1px rgba(255, 122, 80, 0.35); /* crisp coral rim, not a bloom */
-  --glow-accent-hover: 0 0 0 1px rgba(255, 122, 80, 0.5);
-  --shadow-glass: 0 1px 8px 0 rgba(0, 0, 0, 0.28), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
-  --shadow-float: 0 12px 36px -4px rgba(0, 0, 0, 0.55), 0 0 0 1px #2a2a36;
-  --shadow-card: 0 1px 8px rgba(0, 0, 0, 0.04); /* near-invisible neutral lift */
+  /* ---- Shadow & depth (Stitch discipline: opaque tiers + 1px top-edge
+     specularity, NOT colored glow) ----
+     Depth reads from the fixed surface ladder (#0e→#35) plus a 1px inset
+     top-edge highlight on glass. Drop shadows are neutral and minimal — only
+     on truly floating overlays (modals, menus), never on resting cards.
+     Colored glow is rationed to ≤1 hero accent per view (active item or the
+     primary CTA), applied narrowly, never on badges or every card. */
+  --glow-accent: 0 0 0 1px rgba(255, 122, 80, 0.4); /* crisp coral rim, not a bloom */
+  --glow-accent-hover: 0 0 0 1px rgba(255, 122, 80, 0.55);
+  /* Resting glass: near-flat. The inset top-edge specularity IS the depth cue;
+     the neutral drop is feather-light so cards sit on the canvas, not float. */
+  --shadow-glass: 0 1px 2px 0 rgba(0, 0, 0, 0.18), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  /* Floating overlays only (modals, menus): heavier neutral lift + 1px rim. */
+  --shadow-float: 0 12px 36px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px #2a2a36;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.10); /* near-invisible neutral lift */
 
   /* ---- Gradients (dawn-to-sunset ramp) ---- */
   --grad-1: linear-gradient(135deg, #ff7a50 0%, #ff9e6c 100%);
@@ -122,11 +128,12 @@ body {
   color: var(--foreground);
   font-family: var(--font-jakarta), var(--font-inter), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
-  /* Subtle radiant atmosphere: a single soft coral+periwinkle wash. Kept faint
-     so depth reads from opaque surface tiers, not a site-wide glow. */
+  /* Subtle radiant atmosphere: a single faint coral+periwinkle wash. Kept
+     very faint so depth reads from the opaque surface tiers and the 1px
+     inset top-edge highlight — this is ambiance, not a glow source. */
   background-image:
-    radial-gradient(circle at 85% 0%, rgba(255, 122, 80, 0.07), transparent 45%),
-    radial-gradient(circle at 10% 100%, rgba(80, 140, 255, 0.06), transparent 50%);
+    radial-gradient(circle at 85% 0%, rgba(255, 122, 80, 0.05), transparent 42%),
+    radial-gradient(circle at 10% 100%, rgba(80, 140, 255, 0.04), transparent 48%);
   background-attachment: fixed;
 }
 
@@ -211,20 +218,19 @@ samp {
   animation: pulse-soft 1.4s ease-in-out infinite;
 }
 
-/* Neon status dot pulse (used on critical badges) */
+/* Status indicator: a gentle opacity breath, not a scaling glow throb.
+   Mirrors Stitch's steady presence dots — a subtle aliveness, not a bloom. */
 @keyframes neon-pulse {
   0%,
   100% {
     opacity: 1;
-    transform: scale(1);
   }
   50% {
-    opacity: 0.5;
-    transform: scale(1.2);
+    opacity: 0.6;
   }
 }
 .neon-dot {
-  animation: neon-pulse 2s infinite;
+  animation: neon-pulse 2.4s ease-in-out infinite;
 }
 
 /* Spinner (pipeline running state) */

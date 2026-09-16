@@ -61,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="flex h-9 w-9 items-center justify-center rounded-xl text-white"
               style={{
                 background: "var(--grad-1)",
-                boxShadow: "0 4px 20px rgba(255, 122, 80, 0.4)",
+                boxShadow: "inset 0 1px 0 0 rgba(255, 255, 255, 0.18)",
               }}
             >
               <ShieldCheck className="h-4.5 w-4.5" strokeWidth={2.5} />

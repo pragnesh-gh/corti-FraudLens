@@ -5,10 +5,13 @@ import type { LucideIcon } from "lucide-react";
 import { Check, AlertTriangle, Loader2 } from "lucide-react";
 
 /* ============================================================================
-   FraudLens UI primitives — Luminous Cyber-Glassmorphism.
-   Glass cards use backdrop-filter blur over the ink-violet canvas. Risk badges
-   and chips use the reconciled neon palette. ScoreGauge / PipelineStepper /
-   CodeComparisonTable are portable components the method-demo consumes.
+   FraudLens UI primitives — flat Obsidian-Sunset glass.
+   Depth comes from opaque surface tiers + a 1px inset top-edge specularity
+   highlight, not colored glow. Badges and chips stay flat (no colored drop
+   shadows); colored glow is rationed to ≤1 hero accent per view. Risk badges
+   and chips use the reconciled Obsidian-Sunset palette. ScoreGauge /
+   PipelineStepper / CodeComparisonTable are portable components the method-demo
+   consumes.
    ========================================================================= */
 
 /** Severity / risk pill. */
@@ -100,7 +103,6 @@ export function IntentBadge({
         style={{
           background: "var(--risk-high)",
           borderColor: "var(--risk-high)",
-          boxShadow: "0 0 8px rgba(255, 107, 74, 0.4)",
         }}
       >
         Likely Fraud
