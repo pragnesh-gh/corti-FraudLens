@@ -88,9 +88,17 @@ export default function CaseQueuePage() {
         {/* Hero — total flagged impact */}
         <Card
           glow
-          className="col-span-2 flex flex-col justify-between gap-3 overflow-hidden p-5 md:col-span-5 md:row-span-2"
+          className="relative col-span-2 flex flex-col justify-between gap-3 overflow-hidden p-5 md:col-span-5 md:row-span-2"
         >
-          <div className="flex items-start justify-between">
+          {/* Tasteful radiant wash — one contained ambient orb, behind content,
+              pointer-events-none. Echoes the Stitch "radiant gradient" cue
+              without site-wide glow. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-16 right-0 h-48 w-48 rounded-full opacity-60 blur-3xl"
+            style={{ background: "radial-gradient(circle, rgba(255,122,80,0.22), transparent 70%)" }}
+          />
+          <div className="relative flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">
                 <ShieldAlert className="h-3.5 w-3.5 text-[var(--risk-high)]" />
