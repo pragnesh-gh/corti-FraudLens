@@ -49,7 +49,16 @@ interface RunResult {
   error?: string;
 }
 
-export function TryItYourself({ initialCaseId }: { initialCaseId: string }) {
+export function TryItYourself({
+  initialCaseId,
+  onRan,
+}: {
+  initialCaseId: string;
+  /** Fired once when a run completes and a prediction is available (live or
+   *  replay). Lets the parent (LiveDemoExperience) reveal the "Compare" advance
+   *  without DOM-sniffing. */
+  onRan?: () => void;
+}) {
   const [selectedId, setSelectedId] = useState(initialCaseId);
   const tc = getTourCase(selectedId) ?? TOUR_CASES[0];
   const [note, setNote] = useState(tc.noteText);
@@ -72,6 +81,13 @@ export function TryItYourself({ initialCaseId }: { initialCaseId: string }) {
     setResult(null);
     setVisibleSteps(0);
   }, [tc.noteText]);
+
+  // Notify the parent when a run completes (a prediction is available). This
+  // is the clean bridge that lets LiveDemoExperience reveal "Compare" without
+  // polling the DOM. Fires only on the null → non-null transition.
+  useEffect(() => {
+    if (result) onRan?.();
+  }, [result, onRan]);
 
   async function run() {
     setRunning(true);

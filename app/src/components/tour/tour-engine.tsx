@@ -1,21 +1,31 @@
 "use client";
 
 /**
- * Generalized 7-step tour renderers.
+ * Live Demos experience — click-driven, coding-demo-style.
  *
- * Each step takes a TourCase and renders the same visual structure as the
- * original diagnosis-padding tour, adapted to the case's fraud type:
- *   intro → note → billed → truth → mismatch → impact → verdict.
+ * Replaces the old auto-advancing 7-step TourEngine. The user is in full
+ * control: they land on a "Try it yourself" start screen, click to RUN the
+ * coding-expert agent, then click through three tabs — Run → Compare →
+ * Investigate — to walk the full pipeline (predict → compare → retrace →
+ * judgement → legal brief). Nothing runs in the background; nothing
+ * auto-advances between tabs.
+ *
+ * The history-dependent case (case_history_012) surfaces the "Pull patient
+ * history" mind-change inside the Investigate tab (Common → Billed-only),
+ * revealed on click.
+ *
+ * The step renderer components below (RetraceStep, HistoryRetraceStep,
+ * VerdictStep, …) are the reusable rendering pieces; the top-level
+ * LiveDemoExperience orchestrates them via the tab state machine.
  *
  * Pure React/CSS/SVG — no animation libs, no new dependencies.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, FraudChip, IntentBadge } from "@/components/ui";
 import {
-  Play,
-  Pause,
   RotateCcw,
   ChevronLeft,
   ChevronRight,
@@ -24,7 +34,6 @@ import {
   AlertTriangle,
   FileText,
   TrendingUp,
-  DollarSign,
   ScanSearch,
   Gavel,
   Sparkles,
@@ -36,6 +45,8 @@ import {
   Scale,
   ShieldCheck,
   History,
+  ArrowLeft,
+  Zap,
 } from "lucide-react";
 import type { TourCase } from "./tour-types";
 import { CodeCard, SeverityMeter, DeltaChip, ConfidenceGauge } from "./tour-widgets";
@@ -46,20 +57,9 @@ import { LegalBriefView } from "@/components/legal-brief-view";
 import type { CaseResult, CodeAnalysis } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
-// TourEngine — the deterministic step runner + controls + header.
-// Renders the active step via a lookup on the case's step ids.
+// LiveDemoExperience — the 3-tab, click-driven orchestrator.
+// Run → Compare → Investigate. No background runs, no auto-advance.
 // ---------------------------------------------------------------------------
-
-const STEP_RENDERERS: Record<string, (tc: TourCase, onReplay: () => void) => React.ReactNode> = {
-  intro: (tc) => <IntroStep tc={tc} />,
-  note: (tc) => <NoteStep tc={tc} />,
-  billed: (tc) => <BilledStep tc={tc} />,
-  // `predicted` and `retrace` are rendered explicitly in TourEngine (they take
-  // live-pipeline props: liveConfirmed + liveCodeSet). `retrace` also branches
-  // to HistoryRetraceStep for the patient-history case. See the render block.
-  impact: (tc) => <ImpactStep tc={tc} />,
-  verdict: (tc, onReplay) => <VerdictStep tc={tc} onReplay={onReplay} />,
-};
 
 /** Load the detector's real pipeline output for this tour case (precomputed
  *  preferred, falls back to replay). Returns null if unavailable. */
@@ -75,140 +75,123 @@ function bucketAnalyses(analyses: CodeAnalysis[]) {
   return { matched, overBilled, underBilled };
 }
 
-export function TourEngine({ tc }: { tc: TourCase }) {
-  const steps = tc.steps;
-  const total = steps.length;
-  const [step, setStep] = useState(0);
-  const [playing, setPlaying] = useState(true);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+type Tab = "run" | "compare" | "investigate";
 
-  // Live pipeline: fire the real Corti run in the background on mount. Never
-  // blocks the deterministic step animations; when it lands, "confirmed live"
-  // badges mark the codes the real run predicted + a header status badge.
-  const [liveArmed, setLiveArmed] = useState(false);
-  const [liveLoading, setLiveLoading] = useState(false);
-  const [liveResult, setLiveResult] = useState<CaseResult | null>(null);
+const TABS: { id: Tab; label: string; icon: typeof Sparkles }[] = [
+  { id: "run", label: "Run", icon: Sparkles },
+  { id: "compare", label: "Compare", icon: ScanSearch },
+  { id: "investigate", label: "Investigate", icon: Gavel },
+];
 
-  const liveConfirmed: string | false = liveResult?.source === "live" ? "staging-eu" : false;
-  // Codes the live run predicted (dx + procedures) — for "confirmed live" chips.
-  const liveCodeSet = useMemo(() => {
-    if (!liveResult) return new Set<string>();
-    const dx = liveResult.predicted_codes?.dx ?? [];
-    const proc = liveResult.predicted_codes?.procedures ?? [];
-    return new Set<string>([...dx.map((d) => d.code), ...proc.map((p) => p.code)]);
-  }, [liveResult]);
+export function LiveDemoExperience({ tc }: { tc: TourCase }) {
+  const [tab, setTab] = useState<Tab>("run");
+  // Whether the user has kicked off the coding-expert run in Tab 1. The run
+  // itself is owned by the TryItYourself component (click-driven); this just
+  // gates the "Compare" advance until a run has happened.
+  const [hasRun, setHasRun] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/run-pipeline")
-      .then((r) => r.json())
-      .then((d) => !cancelled && setLiveArmed(Boolean(d.live)))
-      .catch(() => !cancelled && setLiveArmed(false));
-    setLiveLoading(true);
-    fetch("/api/run-pipeline", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ caseId: tc.caseId }),
-    })
-      .then((r) => r.json())
-      .then((d: CaseResult) => {
-        if (cancelled) return;
-        if (d && !((d as { error?: string }).error)) setLiveResult(d);
-      })
-      .catch(() => {})
-      .finally(() => !cancelled && setLiveLoading(false));
-    return () => {
-      cancelled = true;
-    };
-  }, [tc.caseId]);
+  // Investigate tab: click-to-reveal sub-steps (not auto-timed).
+  // 0 = retrace/history, 1 = verdict, 2 = legal brief.
+  const [invStage, setInvStage] = useState(0);
 
-  const clearTimers = useCallback(() => {
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
+  const goCompare = useCallback(() => setTab("compare"), []);
+  const goInvestigate = useCallback(() => setTab("investigate"), []);
+  const restart = useCallback(() => {
+    setTab("run");
+    setHasRun(false);
+    setInvStage(0);
   }, []);
-
-  // Deterministic auto-advance: when playing and the current step has a
-  // duration, schedule a single advance. Manual controls reset this.
-  useEffect(() => {
-    clearTimers();
-    if (!playing) return;
-    const d = steps[step]?.duration ?? 0;
-    if (d > 0) {
-      const t = setTimeout(() => setStep((s) => Math.min(s + 1, total - 1)), d);
-      timers.current.push(t);
-    }
-    return clearTimers;
-  }, [step, playing, clearTimers, steps, total]);
-
-  // Stop auto-advance at the final verdict step (duration 0).
-  useEffect(() => {
-    if (step === total - 1) setPlaying(false);
-  }, [step, total]);
-
-  const next = useCallback(() => {
-    setPlaying(false);
-    setStep((s) => Math.min(s + 1, total - 1));
-  }, [total]);
-  const prev = useCallback(() => {
-    setPlaying(false);
-    setStep((s) => Math.max(s - 1, 0));
-  }, []);
-  const jump = useCallback((target: number) => {
-    setPlaying(false);
-    setStep(target);
-  }, []);
-  const replay = useCallback(() => {
-    clearTimers();
-    setStep(0);
-    setPlaying(true);
-  }, [clearTimers]);
-  const togglePlay = useCallback(() => {
-    if (step === total - 1) {
-      replay();
-      return;
-    }
-    setPlaying((p) => !p);
-  }, [step, replay, total]);
-
-  const current = steps[step];
 
   return (
     <div className="space-y-4">
-      <TourHeader
-        tc={tc}
-        step={step}
-        liveConfirmed={liveConfirmed}
-        liveLoading={liveLoading}
-        liveArmed={liveArmed}
-      />
-      <TourControls
-        steps={steps}
-        step={step}
-        total={total}
-        playing={playing}
-        onPrev={prev}
-        onNext={next}
-        onJump={jump}
-        onReplay={replay}
-        onTogglePlay={togglePlay}
-      />
+      {/* Back link */}
+      <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
+        <Link href="/tour" className="inline-flex items-center gap-1 hover:text-[var(--foreground)]">
+          <ChevronLeft className="h-3.5 w-3.5" /> Live Demos
+        </Link>
+      </div>
 
-      {/* Active step content — keyed so the tour-step-in animation re-runs.
-          Steps that surface "confirmed live" badges (predicted, retrace) get
-          the live code set + region; the rest use the shared renderer. */}
-      <div key={step} className="tour-step-in">
-        {current.id === "predicted" ? (
-          <PredictedStep tc={tc} liveConfirmed={liveConfirmed} liveCodeSet={liveCodeSet} />
-        ) : current.id === "retrace" ? (
-          tc.patientHistory ? (
-            <HistoryRetraceStep tc={tc} />
-          ) : (
-            <RetraceStep tc={tc} liveConfirmed={liveConfirmed} liveCodeSet={liveCodeSet} />
-          )
-        ) : (
-          (STEP_RENDERERS[current.id] ?? null)?.(tc, replay) ?? null
+      <LiveDemoHeader tc={tc} tab={tab} />
+
+      {/* Tab indicator — click any tab to jump (no auto-advance). */}
+      <Card className="px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            {TABS.map((t, i) => {
+              const Icon = t.icon;
+              const active = tab === t.id;
+              const done =
+                (t.id === "run" && (tab === "compare" || tab === "investigate")) ||
+                (t.id === "compare" && tab === "investigate");
+              return (
+                <div key={t.id} className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setTab(t.id)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition",
+                      active
+                        ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                        : done
+                          ? "text-[var(--risk-low)]"
+                          : "text-[var(--muted-2)] hover:text-[var(--foreground)]",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "flex h-5 w-5 items-center justify-center rounded-md",
+                        active
+                          ? "bg-[var(--accent)] text-white"
+                          : done
+                            ? "bg-[var(--risk-low-soft)] text-[var(--risk-low)]"
+                            : "bg-[var(--surface-2)] text-[var(--muted-2)]",
+                      )}
+                    >
+                      {done ? <Check className="h-3 w-3" /> : <Icon className="h-3 w-3" />}
+                    </span>
+                    {i + 1}. {t.label}
+                  </button>
+                  {i < TABS.length - 1 && <ChevronRight className="h-3.5 w-3.5 text-[var(--border-strong)]" />}
+                </div>
+              );
+            })}
+          </div>
+          <div className="ml-auto flex items-center gap-1.5">
+            <button
+              onClick={restart}
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Restart
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      {/* Active tab content — keyed so the tour-step-in animation re-runs. */}
+      <div key={tab} className="tour-step-in">
+        {tab === "run" && (
+          <RunTab tc={tc} onRan={() => setHasRun(true)} hasRun={hasRun} onCompare={goCompare} />
+        )}
+        {tab === "compare" && <CompareTab tc={tc} onInvestigate={goInvestigate} />}
+        {tab === "investigate" && (
+          <InvestigateTab tc={tc} stage={invStage} setStage={setInvStage} onRestart={restart} />
         )}
       </div>
+
+      {/* Footer exit */}
+      <Card className="px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
+            <ScanSearch className="h-4 w-4 text-[var(--muted-2)]" />
+            You&apos;re in control — click to run, click to advance. Nothing runs until you do.
+          </div>
+          <Link
+            href="/tour"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--accent)] hover:underline"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to demos
+          </Link>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -217,67 +200,31 @@ export function TourEngine({ tc }: { tc: TourCase }) {
 // Header
 // ---------------------------------------------------------------------------
 
-function TourHeader({
-  tc,
-  step,
-  liveConfirmed,
-  liveLoading,
-  liveArmed,
-}: {
-  tc: TourCase;
-  step: number;
-  liveConfirmed: string | false;
-  liveLoading: boolean;
-  liveArmed: boolean;
-}) {
-  const current = tc.steps[step];
-  const BrainIcon = tc.billingModel === "risk_adjustment" ? BrainCircuit : Receipt;
+function LiveDemoHeader({ tc, tab }: { tc: TourCase; tab: Tab }) {
+  const Icon = tc.billingModel === "risk_adjustment" ? BrainCircuit : Receipt;
+  const subtitle =
+    tab === "run"
+      ? "Run the coding-expert agent on this case — click to start."
+      : tab === "compare"
+        ? "What our expert predicted vs what the provider billed."
+        : "The agentic framework investigates the gaps — retrace, judgement, legal brief.";
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
           <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--accent-soft)] text-[var(--accent)]">
-            <Sparkles className="h-3.5 w-3.5" />
+            <Zap className="h-3.5 w-3.5" />
           </span>
-          <span className="font-semibold text-[var(--foreground)]">Guided Tour</span>
+          <span className="font-semibold text-[var(--foreground)]">Live Demo</span>
           <span className="font-mono text-xs">· {tc.caseId}</span>
         </div>
-        <h1 className="mt-1 text-xl font-bold tracking-tight">{current.title}</h1>
-        <p className="text-sm text-[var(--muted)]">{current.subtitle}</p>
+        <h1 className="mt-1 text-xl font-bold tracking-tight">{tc.teaser}</h1>
+        <p className="text-sm text-[var(--muted)]">{subtitle}</p>
       </div>
       <div className="flex items-center gap-2">
         <FraudChip type={tc.fraudType} />
-        <span
-          className="inline-flex items-center gap-1 rounded-md border border-[var(--accent)]/20 bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-medium text-[var(--accent)]"
-        >
-          <BrainIcon className="h-3 w-3" /> {tc.billingModelLabel}
-        </span>
-        <span
-          className={cn(
-            "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium",
-            liveConfirmed
-              ? "border-[var(--risk-low)]/30 bg-[var(--risk-low-soft)] text-[var(--risk-low)]"
-              : liveLoading
-                ? "border-[var(--accent)]/30 bg-[var(--accent-soft)] text-[var(--accent)]"
-                : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)]",
-          )}
-          title={
-            liveConfirmed
-              ? "Real Corti pipeline confirmed this run"
-              : liveLoading
-                ? "Real pipeline running in the background"
-                : liveArmed
-                  ? "Live pipeline armed — fires on entry"
-                  : "Precomputed from a real pipeline run"
-          }
-        >
-          <span
-            className={cn(
-              "h-1.5 w-1.5 rounded-full",
-              liveConfirmed ? "bg-[var(--risk-low)]" : liveLoading ? "bg-[var(--accent)] animate-pulse-soft" : "bg-[var(--muted-2)]",
-            )}
-          />
-          {liveConfirmed ? `Live · ${liveConfirmed}` : liveLoading ? "Running…" : liveArmed ? "Armed" : "Replay"}
+        <span className="inline-flex items-center gap-1 rounded-md border border-[var(--accent)]/20 bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-medium text-[var(--accent)]">
+          <Icon className="h-3 w-3" /> {tc.billingModelLabel}
         </span>
       </div>
     </div>
@@ -285,325 +232,71 @@ function TourHeader({
 }
 
 // ---------------------------------------------------------------------------
-// Controls
+// Tab 1 — Run: the Try-it-yourself start screen.
+// The user clicks "Run the coding-expert agent". Nothing runs before that.
 // ---------------------------------------------------------------------------
 
-function TourControls({
-  steps,
-  step,
-  total,
-  playing,
-  onPrev,
-  onNext,
-  onJump,
-  onReplay,
-  onTogglePlay,
-}: {
-  steps: TourCase["steps"];
-  step: number;
-  total: number;
-  playing: boolean;
-  onPrev: () => void;
-  onNext: () => void;
-  onJump: (target: number) => void;
-  onReplay: () => void;
-  onTogglePlay: () => void;
-}) {
-  const isLast = step === total - 1;
-  return (
-    <Card className="px-4 py-3">
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Step indicator — click a dot to jump. */}
-        <div className="flex items-center gap-1.5">
-          {steps.map((s, i) => (
-            <button
-              key={s.id}
-              onClick={() => onJump(i)}
-              aria-label={`Step ${i + 1}: ${s.title}`}
-              title={`${i + 1}. ${s.title}`}
-              className={cn(
-                "h-2 rounded-full transition-all duration-300",
-                i === step
-                  ? "w-7 bg-[var(--accent)]"
-                  : i < step
-                    ? "w-2 cursor-pointer bg-[var(--accent)]/50 hover:bg-[var(--accent)]/70"
-                    : "w-2 cursor-pointer bg-[var(--border-strong)] hover:bg-[var(--muted-2)]",
-              )}
-            />
-          ))}
-        </div>
-        <span className="text-xs font-medium tabular-nums text-[var(--muted)]">
-          Step {step + 1} / {total}
-        </span>
-
-        <div className="ml-auto flex items-center gap-1.5">
-          <button
-            onClick={onPrev}
-            disabled={step === 0}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-medium transition",
-              step === 0
-                ? "cursor-not-allowed opacity-40"
-                : "text-[var(--foreground)] hover:bg-[var(--surface-2)]",
-            )}
-          >
-            <ChevronLeft className="h-3.5 w-3.5" /> Prev
-          </button>
-          <button
-            onClick={onTogglePlay}
-            className="inline-flex items-center gap-1 rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
-          >
-            {isLast ? (
-              <>
-                <RotateCcw className="h-3.5 w-3.5" /> Replay
-              </>
-            ) : playing ? (
-              <>
-                <Pause className="h-3.5 w-3.5" /> Pause
-              </>
-            ) : (
-              <>
-                <Play className="h-3.5 w-3.5" /> Play
-              </>
-            )}
-          </button>
-          <button
-            onClick={onNext}
-            disabled={step === total - 1}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-medium transition",
-              step === total - 1
-                ? "cursor-not-allowed opacity-40"
-                : "text-[var(--foreground)] hover:bg-[var(--surface-2)]",
-            )}
-          >
-            Next <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={onReplay}
-            className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
-          >
-            <RotateCcw className="h-3.5 w-3.5" /> Restart
-          </button>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Step 1 — Intro
-// ---------------------------------------------------------------------------
-
-function IntroStep({ tc }: { tc: TourCase }) {
-  return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr_1fr]">
-      <Card className="overflow-hidden">
-        <CardHeader title="What we're looking at" subtitle="One claim, one note, one bad code." />
-        <div className="space-y-2.5 p-5">
-          {tc.introFacts.map((f, i) => {
-            const Icon = f.icon;
-            return (
-              <div
-                key={i}
-                className="animate-fade-rise flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5"
-                style={{ animationDelay: `${i * 120}ms` }}
-              >
-                <span className="flex h-8 w-8 flex-none items-center justify-center rounded-md bg-[var(--surface)] text-[var(--accent)] shadow-sm">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <div>
-                  <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">
-                    {f.label}
-                  </div>
-                  <div className="text-sm font-medium text-[var(--foreground)]">{f.value}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
-      <Card className="overflow-hidden">
-        <CardHeader title="The mechanism" subtitle="Why this fraud is hard to spot." />
-        <div className="p-5">
-          {tc.introMechanism.map((m, i) => (
-            <p
-              key={i}
-              className={cn(
-                "text-sm leading-relaxed",
-                i === 0 ? "text-[var(--foreground)]" : "mt-3 text-[var(--muted)]",
-              )}
-            >
-              {m.body}
-            </p>
-          ))}
-          <div
-            className="mt-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-xs"
-            style={{
-              borderColor: `${tc.accentColor}30`,
-              background: tc.accentSoft,
-              color: tc.accentColor,
-            }}
-          >
-            <AlertTriangle className="h-4 w-4 flex-none" />
-            <span className="font-medium">
-              We'll find a {tc.fraudType === "dx_inflation" ? "diagnosis" : "code"} billed with zero supporting evidence in the note.
-            </span>
-          </div>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Step 2 — Clinical note reveal
-// ---------------------------------------------------------------------------
-
-function NoteStep({ tc }: { tc: TourCase }) {
-  // Lines highlight in sequentially.
-  const [revealed, setRevealed] = useState(0);
-  const sentences = useMemo(() => {
-    return tc.noteText.split("\n").filter((l) => l.trim().length > 0);
-  }, [tc.noteText]);
-
-  useEffect(() => {
-    setRevealed(0);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    sentences.forEach((_, i) => {
-      timers.push(setTimeout(() => setRevealed(i + 1), 280 + i * 320));
-    });
-    return () => timers.forEach(clearTimeout);
-  }, [sentences]);
-
-  return (
-    <Card className="overflow-hidden">
-      <CardHeader
-        title="Clinical note"
-        subtitle="Watch the relevant sentences come in. Notice what's missing."
-        right={
-          <span className="inline-flex items-center gap-1 rounded-md bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--accent)]">
-            <FileText className="h-3 w-3" /> verbatim
-          </span>
-        }
-      />
-      <div className="max-h-[440px] overflow-y-auto px-5 py-4">
-        <div className="space-y-1.5 font-mono text-[13px] leading-relaxed text-[var(--foreground)]">
-          {sentences.map((line, i) => {
-            const isShown = i < revealed;
-            return (
-              <p
-                key={i}
-                className={cn(
-                  "transition-opacity duration-300",
-                  isShown ? "opacity-100" : "opacity-0",
-                )}
-              >
-                {line}
-              </p>
-            );
-          })}
-        </div>
-        {revealed >= sentences.length && (
-          <div className="animate-fade-rise mt-4 flex items-center gap-2 rounded-lg border border-dashed border-[var(--risk-high)]/40 bg-[var(--risk-high-soft)]/50 px-3 py-2 text-xs text-[var(--risk-high)]">
-            <Microscope className="h-4 w-4 flex-none" />
-            <span>{tc.proofHeadline}</span>
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Step 3 — What was billed (transcript column)
-// ---------------------------------------------------------------------------
-
-function BilledStep({ tc }: { tc: TourCase }) {
-  const [revealed, setRevealed] = useState(0);
-  useEffect(() => {
-    setRevealed(0);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    tc.billedCodes.forEach((_, i) => {
-      timers.push(setTimeout(() => setRevealed(i + 1), 350 + i * 600));
-    });
-    return () => timers.forEach(clearTimeout);
-  }, [tc.billedCodes]);
-
-  return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <Card className="overflow-hidden">
-        <CardHeader
-          title="What was billed"
-          subtitle="The submitted codes — the provider's transcript."
-          right={
-            <span className="inline-flex items-center gap-1 rounded-md bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-medium text-[var(--muted)]">
-              <FileText className="h-3 w-3" /> submitted
-            </span>
-          }
-        />
-        <div className="space-y-2 p-4">
-          {tc.billedCodes.map((c, i) => (
-            <div key={c.code}>
-              {i < revealed ? (
-                <CodeCard code={c} column="billed" index={i} />
-              ) : (
-                <div className="h-[88px] rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-2)]/40" />
-              )}
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      <Card className="overflow-hidden border-dashed">
-        <CardHeader
-          title="What the note supports"
-          subtitle="Reveals next — the correct codes."
-          right={
-            <span className="inline-flex items-center gap-1 rounded-md bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-medium text-[var(--muted-2)]">
-              <ScanSearch className="h-3 w-3" /> pending
-            </span>
-          }
-        />
-        <div className="flex h-[260px] items-center justify-center px-4 text-center text-sm text-[var(--muted-2)]">
-          <div>
-            <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-[var(--border-strong)] text-[var(--muted-2)]">
-              <ScanSearch className="h-5 w-5" />
-            </div>
-            The truth column appears in the next step…
-          </div>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Step 4 — Predicted: what our coding expert predicted (set-intersection compare)
-// ---------------------------------------------------------------------------
-
-function PredictedStep({
+function RunTab({
   tc,
-  liveConfirmed,
-  liveCodeSet,
+  onRan,
+  hasRun,
+  onCompare,
 }: {
   tc: TourCase;
-  liveConfirmed: string | false;
-  liveCodeSet: Set<string>;
+  onRan: () => void;
+  hasRun: boolean;
+  onCompare: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      {/* The hands-on start screen: template + note + run button.
+          The run is click-driven inside TryItYourself. We surface a "Compare"
+          advance once the user has run it. */}
+      <RunWrap tc={tc} onRan={onRan} />
+
+      {/* Advance to Compare once the user has run it. */}
+      {hasRun && (
+        <Card className="animate-fade-rise px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-[var(--foreground)]">
+              The coding-expert has predicted its codes. Now compare them against what the provider
+              actually billed.
+            </p>
+            <button
+              onClick={onCompare}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
+            >
+              <ScanSearch className="h-3.5 w-3.5" /> Compare with the bill
+            </button>
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/** Renders TryItYourself and calls onRan when a run completes. TryItYourself
+ *  fires its onRan callback directly when its result state flips non-null — a
+ *  clean prop bridge, no DOM-sniffing. */
+function RunWrap({ tc, onRan }: { tc: TourCase; onRan: () => void }) {
+  return <TryItYourself initialCaseId={tc.caseId} onRan={onRan} />;
+}
+
+// ---------------------------------------------------------------------------
+// Tab 2 — Compare: the set-intersection (Common / Expert-only / Billed-only).
+// ---------------------------------------------------------------------------
+
+function CompareTab({
+  tc,
+  onInvestigate,
+}: {
+  tc: TourCase;
+  onInvestigate: () => void;
 }) {
   const result = useDetectorResult(tc.caseId);
-  const [revealed, setRevealed] = useState(0);
 
-  // The predicted codes come from the real precomputed pipeline (codes.predict
-  // + the coding-expert agent). We bucket the per-code analyses to show the
-  // set intersection: matched / over-billed / under-billed.
-  //
-  // History-dependent case (patientHistory set): the note is authored to be
-  // plausible, so a NOTE-ONLY expert AGREES with the bill — the doomed codes
-  // start in Common. We derive the buckets from tc.billedCodes + the note-only
-  // predicted set (tc.noteOnlyPredictedCodes) instead of the pipeline snapshot,
-  // because the mind-change (Common → Wrong) happens in the retrace step.
+  // Derive the predicted set. History case: note-only prediction agrees with
+  // the bill (doomed codes start in Common — the mind-change is in Investigate).
   const isHistoryCase = !!tc.patientHistory && !!tc.noteOnlyPredictedCodes;
   const notePredicted = useMemo(
     () => new Set(tc.noteOnlyPredictedCodes ?? []),
@@ -613,141 +306,321 @@ function PredictedStep({
   const analyses = result?.code_analyses ?? [];
   const pipelineBuckets = useMemo(() => bucketAnalyses(analyses), [analyses]);
 
-  // For the history case, build buckets from billed vs note-only-predicted.
   const historyBuckets = useMemo(() => {
     if (!isHistoryCase) return null;
     const matched = tc.billedCodes.filter((c) => notePredicted.has(c.code));
     const overBilled = tc.billedCodes.filter((c) => !notePredicted.has(c.code));
-    return { matched: matched.map((c) => ({ code: c.code, description: c.description })), overBilled: overBilled.map((c) => ({ code: c.code, description: c.description })), underBilled: [] as { code: string; description: string }[] };
+    return {
+      matched: matched.map((c) => ({ code: c.code, description: c.description })),
+      overBilled: overBilled.map((c) => ({ code: c.code, description: c.description })),
+      underBilled: [] as { code: string; description: string }[],
+    };
   }, [isHistoryCase, tc.billedCodes, notePredicted]);
 
   const matched = isHistoryCase ? historyBuckets!.matched : pipelineBuckets.matched;
   const overBilled = isHistoryCase ? historyBuckets!.overBilled : pipelineBuckets.overBilled;
   const underBilled = isHistoryCase ? historyBuckets!.underBilled : pipelineBuckets.underBilled;
 
-  useEffect(() => {
-    setRevealed(0);
-    const total = matched.length + overBilled.length + underBilled.length;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    for (let i = 0; i < total + 1; i++) {
-      timers.push(setTimeout(() => setRevealed(i + 1), 450 + i * 520));
-    }
-    return () => timers.forEach(clearTimeout);
-  }, [matched.length, overBilled.length, underBilled.length]);
-
-  const predictedCount = matched.length + underBilled.length;
-
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {/* What was billed */}
-      <Card className="overflow-hidden">
-        <CardHeader
-          title="What was billed"
-          subtitle={`${tc.billedCodes.length} submitted code${tc.billedCodes.length === 1 ? "" : "s"}`}
-          right={
-            <span className="inline-flex items-center gap-1 rounded-md bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-medium text-[var(--muted)]">
-              <FileText className="h-3 w-3" /> submitted
-            </span>
-          }
-        />
-        <div className="space-y-2 p-4">
-          {tc.billedCodes.map((c, i) => (
-            <CodeCard key={c.code} code={c} column="billed" index={i} />
-          ))}
+    <div className="space-y-4">
+      <CompareBuckets matched={matched} overBilled={overBilled} underBilled={underBilled} />
+
+      {isHistoryCase && (
+        <Card className="px-4 py-3">
+          <div className="flex items-start gap-2 text-sm text-[var(--muted)]">
+            <History className="mt-0.5 h-4 w-4 flex-none text-[var(--fraud-phantom)]" />
+            <p>
+              The note is plausible, so the coding-expert{" "}
+              <span className="font-semibold text-[var(--foreground)]">agreed</span> with the bill on
+              the note-only pass — the suspect codes are in Common. The investigation pulls the patient
+              history to overturn them.
+            </p>
+          </div>
+        </Card>
+      )}
+
+      <Card className="animate-fade-rise px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-[var(--foreground)]">
+            {overBilled.length > 0 ? (
+              <>
+                <span className="font-semibold text-[var(--risk-high)]">
+                  {overBilled.map((b) => b.code).join(", ")}
+                </span>{" "}
+                {overBilled.length === 1 ? "was billed" : "were billed"} but our expert found nothing to
+                support {overBilled.length === 1 ? "it" : "them"}. Investigate the gaps.
+              </>
+            ) : (
+              "No over-billed codes — the bill aligns with what the note supports."
+            )}
+          </p>
+          <button
+            onClick={onInvestigate}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
+          >
+            <Gavel className="h-3.5 w-3.5" /> Investigate the gaps
+          </button>
         </div>
       </Card>
+    </div>
+  );
+}
 
-      {/* What our coding expert predicted */}
-      <Card className="overflow-hidden border-dashed">
-        <CardHeader
-          title="What our coding expert predicted"
-          subtitle={`${predictedCount} code${predictedCount === 1 ? "" : "s"} from the note — via Corti medical coding.`}
-          right={
-            <span className="inline-flex items-center gap-1 rounded-md bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--accent)]">
-              <ScanLine className="h-3 w-3" /> predicted
+/** The three set-intersection buckets, shown immediately (click-gated by the tab). */
+function CompareBuckets({
+  matched,
+  overBilled,
+  underBilled,
+}: {
+  matched: { code: string; description: string }[];
+  overBilled: { code: string; description: string }[];
+  underBilled: { code: string; description: string }[];
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader
+        title="Compare with the bill"
+        subtitle="What our expert predicted vs what the provider submitted."
+        right={
+          <span className="inline-flex items-center gap-1 rounded-md bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-medium text-[var(--muted)]">
+            <ScanSearch className="h-3 w-3" /> diff
+          </span>
+        }
+      />
+      <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-3">
+        {/* Common */}
+        <div className="rounded-lg border p-3" style={{ borderColor: "var(--risk-low)", background: "var(--risk-low-soft)" }}>
+          <div className="mb-2 flex items-center gap-1.5">
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--surface)] text-[var(--risk-low)]">
+              <Check className="h-3 w-3" strokeWidth={2.5} />
             </span>
-          }
-        />
-        <div className="space-y-2 p-4">
-          {matched.map((a, i) => (
-            <div key={a.code} className={cn(i < revealed && "tour-slide-over")}>
-              <CodeCard
-                code={{ code: a.code, description: a.description, fraudulent: false }}
-                column="truth"
-                index={i}
-                matched
-              />
-              {liveConfirmed && liveCodeSet.has(a.code) && (
-                <div className="mb-1 ml-1 text-[10px] font-semibold text-[var(--risk-low)]">
-                  <Check className="mr-0.5 inline h-2.5 w-2.5" /> confirmed live · {liveConfirmed}
-                </div>
-              )}
+            <div>
+              <div className="text-xs font-semibold text-[var(--risk-low)]">Common</div>
+              <div className="text-[10px] text-[var(--muted)]">On both — grounded</div>
             </div>
-          ))}
-          {underBilled.length > 0 && (
-            <div className="mt-1 text-[11px] font-medium text-[var(--muted-2)]">
-              Predicted but not billed (under-billed):
-            </div>
-          )}
-          {underBilled.map((a, i) => (
-            <div key={a.code} className={cn(i < revealed && "tour-slide-over")}>
-              <CodeCard
-                code={{ code: a.code, description: a.description, fraudulent: false }}
-                column="truth"
-                index={i}
-                matched
-              />
-            </div>
-          ))}
-          {revealed > matched.length + underBilled.length && overBilled.length > 0 && (
-            <div className="tour-slide-over flex h-[88px] items-center justify-center rounded-lg border-2 border-dashed border-[var(--risk-high)]/40 bg-[var(--risk-high-soft)]/40">
-              <div className="flex items-center gap-2 text-sm font-medium text-[var(--risk-high)]">
-                <AlertTriangle className="h-4 w-4" />
-                {overBilled.length} billed code{overBilled.length === 1 ? "" : "s"} we did not predict
+            <span className="ml-auto text-[11px] font-medium tabular-nums text-[var(--muted)]">{matched.length}</span>
+          </div>
+          <div className="space-y-1.5">
+            {matched.length === 0 ? (
+              <div className="rounded-md border border-dashed border-[var(--border)] bg-[var(--surface)]/60 px-2.5 py-2 text-[11px] text-[var(--muted-2)]">
+                None in common.
               </div>
+            ) : (
+              matched.map((c) => (
+                <div key={c.code} className="flex items-start gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5">
+                  <span className="font-mono text-xs font-bold text-[var(--risk-low)]">{c.code}</span>
+                  <span className="text-[11px] leading-tight text-[var(--muted)]">{c.description}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Expert-only (under-billed) */}
+        <div className="rounded-lg border p-3" style={{ borderColor: "var(--accent)", background: "var(--accent-soft)" }}>
+          <div className="mb-2 flex items-center gap-1.5">
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--surface)] text-[var(--accent)]">
+              <Sparkles className="h-3 w-3" strokeWidth={2.5} />
+            </span>
+            <div>
+              <div className="text-xs font-semibold text-[var(--accent)]">Expert only</div>
+              <div className="text-[10px] text-[var(--muted)]">Predicted, not billed</div>
             </div>
+            <span className="ml-auto text-[11px] font-medium tabular-nums text-[var(--muted)]">{underBilled.length}</span>
+          </div>
+          <div className="space-y-1.5">
+            {underBilled.length === 0 ? (
+              <div className="rounded-md border border-dashed border-[var(--border)] bg-[var(--surface)]/60 px-2.5 py-2 text-[11px] text-[var(--muted-2)]">
+                None — the expert didn&apos;t add anything.
+              </div>
+            ) : (
+              underBilled.map((c) => (
+                <div key={c.code} className="flex items-start gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5">
+                  <span className="font-mono text-xs font-bold text-[var(--accent)]">{c.code}</span>
+                  <span className="text-[11px] leading-tight text-[var(--muted)]">{c.description}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Billed-only (over-billed) */}
+        <div className="rounded-lg border p-3" style={{ borderColor: "var(--risk-high)", background: "var(--risk-high-soft)" }}>
+          <div className="mb-2 flex items-center gap-1.5">
+            <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--surface)] text-[var(--risk-high)]">
+              <X className="h-3 w-3" strokeWidth={2.5} />
+            </span>
+            <div>
+              <div className="text-xs font-semibold text-[var(--risk-high)]">Billed only</div>
+              <div className="text-[10px] text-[var(--muted)]">Billed, not predicted — investigate</div>
+            </div>
+            <span className="ml-auto text-[11px] font-medium tabular-nums text-[var(--muted)]">{overBilled.length}</span>
+          </div>
+          <div className="space-y-1.5">
+            {overBilled.length === 0 ? (
+              <div className="rounded-md border border-dashed border-[var(--border)] bg-[var(--surface)]/60 px-2.5 py-2 text-[11px] text-[var(--muted-2)]">
+                None — nothing over-billed.
+              </div>
+            ) : (
+              overBilled.map((c) => (
+                <div key={c.code} className="flex items-start gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5">
+                  <span className="font-mono text-xs font-bold text-[var(--risk-high)]">{c.code}</span>
+                  <span className="text-[11px] leading-tight text-[var(--muted)]">{c.description}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab 3 — Investigate: retrace (+ history mind-change) → verdict → legal brief.
+// Each sub-stage is revealed by a click, never auto-timed.
+// ---------------------------------------------------------------------------
+
+function InvestigateTab({
+  tc,
+  stage,
+  setStage,
+  onRestart,
+}: {
+  tc: TourCase;
+  stage: number;
+  setStage: (s: number) => void;
+  onRestart: () => void;
+}) {
+  // 0 = retrace/history (shown on entry), 1 = verdict, 2 = legal brief.
+  return (
+    <div className="space-y-4">
+      {/* Stage 0: retrace / history mind-change — always shown first. */}
+      {tc.patientHistory ? (
+        <HistoryRetraceStep tc={tc} />
+      ) : (
+        <RetraceStep tc={tc} liveConfirmed={false} liveCodeSet={new Set()} />
+      )}
+
+      {/* Reveal the verdict — click. */}
+      {stage < 1 && (
+        <Card className="px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-[var(--foreground)]">
+              The retrace is done. Aggregate it into a case verdict.
+            </p>
+            <button
+              onClick={() => setStage(1)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
+            >
+              <Gavel className="h-3.5 w-3.5" /> Show the verdict
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {/* Stage 1: verdict. */}
+      {stage >= 1 && (
+        <div className="animate-fade-rise space-y-4">
+          <VerdictStep tc={tc} onReplay={onRestart} hideExtras />
+          {/* Reveal the legal brief — click. */}
+          {stage < 2 && (
+            <Card className="px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-[var(--foreground)]">
+                  Generate the legal brief from the findings (textgen — Guided Docs).
+                </p>
+                <button
+                  onClick={() => setStage(2)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
+                >
+                  <Scale className="h-3.5 w-3.5" /> Generate legal brief
+                </button>
+              </div>
+            </Card>
           )}
         </div>
-      </Card>
+      )}
 
-      {/* Set-intersection summary */}
-      {revealed > matched.length + underBilled.length + overBilled.length && (
-        <div className="animate-fade-rise lg:col-span-2">
-          <Card className="px-4 py-3">
-            <div className="flex flex-wrap items-center gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--risk-low-soft)] text-[var(--risk-low)]">
-                  <Check className="h-4 w-4" />
-                </span>
-                <span className="font-medium text-[var(--foreground)]">{matched.length}</span>
-                <span className="text-[var(--muted)]">matched (common)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--risk-high-soft)] text-[var(--risk-high)]">
-                  <AlertTriangle className="h-4 w-4" />
-                </span>
-                <span className="font-medium text-[var(--risk-high)]">{overBilled.length}</span>
-                <span className="text-[var(--muted)]">over-billed → investigate</span>
-              </div>
-              {underBilled.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
-                    <ScanLine className="h-4 w-4" />
-                  </span>
-                  <span className="font-medium text-[var(--foreground)]">{underBilled.length}</span>
-                  <span className="text-[var(--muted)]">under-billed</span>
-                </div>
-              )}
-            </div>
-          </Card>
+      {/* Stage 2: legal brief. */}
+      {stage >= 2 && (
+        <div className="animate-fade-rise space-y-4">
+          <LegalBriefBlock tc={tc} />
+          {/* Actions */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={onRestart}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Run again
+            </button>
+            <Link
+              href="/tour"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--foreground)]"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" /> Back to demos
+            </Link>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
+/** The legal brief block — reuses the exact buildLegalBrief/findingFromResult
+ *  wiring preserved from the old VerdictStep. */
+function LegalBriefBlock({ tc }: { tc: TourCase }) {
+  const result = useDetectorResult(tc.caseId);
+  const finding = result?.findings[0];
+  const detectorVerdict = finding?.analysis?.verdict ?? finding?.intent;
+  const legalBriefText = useMemo(() => {
+    const briefFinding = findingFromResult(result, {
+      fraudType: tc.fraudType,
+      verdict: detectorVerdict === "fraud" ? "fraud" : detectorVerdict === "error" ? "error" : "fraud",
+      confidence: tc.fraudConfidence,
+    });
+    const billedCodes = tc.billedCodes.map((b) => ({ code: b.code, description: b.description }));
+    return buildLegalBrief({
+      caseId: tc.caseId,
+      encounterDate: undefined,
+      clinicalNote: tc.noteText,
+      billedCodes,
+      finding: briefFinding,
+      analyses: result?.code_analyses,
+      totalImpact: result?.total_impact,
+      detected: result?.detected,
+      liveNarrative: result?.source === "live" ? result?.legal_brief : undefined,
+    });
+  }, [tc, result, detectorVerdict]);
+
+  return (
+    <Card className="surface-sober overflow-hidden">
+      <CardHeader
+        title="Legal brief"
+        subtitle="Generated by textgen (Guided Docs) from the detector findings — preliminary, not a determination"
+        right={<Scale className="h-4 w-4 text-[var(--accent)]" />}
+      />
+      <div className="print-sober px-5 py-4">
+        <LegalBriefView brief={legalBriefText} />
+        <p className="mt-4 border-t border-[var(--border-sober)] pt-3 text-[11px] italic leading-snug text-[var(--muted)]">
+          This AI-generated analysis is a preliminary investigation assessment and does not constitute a
+          legal conclusion or a determination of fraud. Mere coding discrepancies do not establish a
+          violation.
+        </p>
+        <button
+          onClick={() => window.print()}
+          className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-sober)] bg-[var(--surface-sober-2)] px-3 py-1.5 text-xs font-medium text-[var(--surface-sober-ink)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+        >
+          <FileText className="h-3.5 w-3.5" /> Print / save as PDF
+        </button>
+      </div>
+    </Card>
+  );
+}
+
 // ---------------------------------------------------------------------------
-// Step 5 — Retrace: the agentic framework reasons about each over-billed code
+// Step renderer — Retrace: the agentic framework reasons about each over-billed
+// code. Reused by the Investigate tab. (Originally the tour's Step 5.)
 // ---------------------------------------------------------------------------
 
 const GROUNDING_LABEL: Record<CodeAnalysis["grounding"], { label: string; tone: "high" | "med" | "low" }> = {
@@ -948,7 +821,7 @@ function RetraceStep({
             />
             <div className="p-5">
               <div className="flex flex-wrap items-center gap-2">
-                <FraudChip type={(finding?.fraud_type ?? tc.fraudType)} />
+                <FraudChip type={finding?.fraud_type ?? tc.fraudType} />
                 <IntentBadge intent={verdict === "fraud" ? "fraud" : verdict === "error" ? "error" : "clean"} />
                 <span className="text-xs text-[var(--muted-2)]">
                   Confidence <span className="font-semibold text-[var(--foreground)]">{finding ? Math.round(finding.confidence * 100) : 0}%</span>
@@ -979,13 +852,9 @@ function RetraceStep({
 }
 
 // ---------------------------------------------------------------------------
-// Step 5b — History retrace: the "Pull patient history" mind-change.
+// Step renderer — History retrace: the "Pull patient history" mind-change.
 // Only rendered for the history-dependent case (tc.patientHistory set).
-// The note-only compare put the doomed codes in Common (expert agreed). Here
-// the agent pulls the chart → the doomed codes transfer Common → Billed-only
-// (Wrong), animated, BEFORE the impossibility reasoning — because there is
-// nothing to reason about until a code becomes unmatched. See
-// docs/research-demo-categories.md §Category D + the "mind-change" flow.
+// Reused by the Investigate tab. (Originally the tour's Step 5b.)
 // ---------------------------------------------------------------------------
 
 function HistoryRetraceStep({ tc }: { tc: TourCase }) {
@@ -1227,128 +1096,20 @@ function HistoryRetraceStep({ tc }: { tc: TourCase }) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 6 — Billing-impact widget: the mechanism → $ flow
+// Step renderer — Verdict. Reused by the Investigate tab.
+// `hideExtras` suppresses the embedded legal brief + TryItYourself + footer
+// (the Investigate tab renders those as separate click-revealed stages).
 // ---------------------------------------------------------------------------
 
-function ImpactStep({ tc }: { tc: TourCase }) {
-  const [stage, setStage] = useState(0);
-  useEffect(() => {
-    setStage(0);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    const stages = tc.impactNodes.length + 1;
-    for (let s = 0; s < stages; s++) {
-      timers.push(setTimeout(() => setStage(s + 1), 600 + s * 700));
-    }
-    return () => timers.forEach(clearTimeout);
-  }, [tc.impactNodes]);
-
-  return (
-    <div className="space-y-4">
-      <Card className="overflow-hidden">
-        <CardHeader
-          title={tc.impactTitle}
-          subtitle={tc.impactSubtitle}
-          right={
-            <span className="inline-flex items-center gap-1 rounded-md bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--accent)]">
-              <BrainCircuit className="h-3 w-3" /> mechanism
-            </span>
-          }
-        />
-        <div className="p-6">
-          {/* Animated flow: node → connector → node → connector → node */}
-          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
-            {tc.impactNodes.map((n, i) => {
-              const Icon = n.icon;
-              return (
-                <div
-                  key={i}
-                  className="flex flex-1 flex-col items-stretch gap-3 sm:flex-row sm:items-center"
-                >
-                  <div
-                    className={cn("flex-1", stage > i && "tour-node-pop")}
-                    style={{ animationDelay: `${i * 120}ms` }}
-                  >
-                    <div
-                      className="flex items-center gap-3 rounded-xl border px-4 py-3.5"
-                      style={{ borderColor: `${n.color}40`, background: n.soft }}
-                    >
-                      <span
-                        className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-[var(--surface)] shadow-sm"
-                        style={{ color: n.color }}
-                      >
-                        <Icon className="h-5 w-5" />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="text-sm font-bold text-[var(--foreground)]">{n.label}</div>
-                        <div className="text-xs text-[var(--muted)]">{n.sub}</div>
-                      </div>
-                    </div>
-                  </div>
-                  {i < tc.impactNodes.length - 1 && (
-                    <div className="flex items-center justify-center sm:px-1">
-                      <div
-                        className={cn(
-                          "h-0.5 w-full rounded-full bg-[var(--accent)] sm:h-1 sm:w-10",
-                          "tour-connector",
-                        )}
-                        style={{
-                          transform: stage > i + 1 ? "scaleX(1)" : "scaleX(0)",
-                          opacity: stage > i ? 1 : 0.3,
-                        }}
-                      />
-                      <ChevronRight className="h-4 w-4 flex-none text-[var(--accent)]" />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {tc.impactStats.map((s) => (
-              <div
-                key={s.label}
-                className={cn(
-                  "rounded-lg border px-3 py-2.5",
-                  s.danger
-                    ? "border-[var(--risk-high)]/30 bg-[var(--risk-high-soft)]"
-                    : "border-[var(--border)] bg-[var(--surface-2)]",
-                )}
-              >
-                <div
-                  className={cn(
-                    "text-[11px] font-medium uppercase tracking-wide",
-                    s.danger ? "text-[var(--risk-high)]" : "text-[var(--muted-2)]",
-                  )}
-                >
-                  {s.label}
-                </div>
-                <div
-                  className={cn(
-                    "text-lg font-bold tabular-nums",
-                    s.danger ? "text-[var(--risk-high)]" : "text-[var(--foreground)]",
-                  )}
-                >
-                  {s.value}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Card>
-
-      <Card className="px-5 py-4">
-        <p className="text-sm leading-relaxed text-[var(--foreground)]">{tc.impactInsight}</p>
-      </Card>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Step 7 — Verdict
-// ---------------------------------------------------------------------------
-
-function VerdictStep({ tc, onReplay }: { tc: TourCase; onReplay: () => void }) {
+function VerdictStep({
+  tc,
+  onReplay,
+  hideExtras = false,
+}: {
+  tc: TourCase;
+  onReplay: () => void;
+  hideExtras?: boolean;
+}) {
   const result = useDetectorResult(tc.caseId);
   const finding = result?.findings[0];
   const detectorCategory = finding?.fraud_type;
@@ -1356,28 +1117,6 @@ function VerdictStep({ tc, onReplay }: { tc: TourCase; onReplay: () => void }) {
   // Show the detector's actual category when it differs from the tour's framing.
   const categoryMismatch = detectorCategory && detectorCategory !== tc.fraudType;
 
-  // Rich multi-section legal brief — built deterministically from the tour case
-  // + the detector's precomputed result. The live narrative is appended when the
-  // result is from a live run.
-  const legalBriefText = useMemo(() => {
-    const briefFinding = findingFromResult(result, {
-      fraudType: tc.fraudType,
-      verdict: detectorVerdict === "fraud" ? "fraud" : detectorVerdict === "error" ? "error" : "fraud",
-      confidence: tc.fraudConfidence,
-    });
-    const billedCodes = tc.billedCodes.map((b) => ({ code: b.code, description: b.description }));
-    return buildLegalBrief({
-      caseId: tc.caseId,
-      encounterDate: undefined,
-      clinicalNote: tc.noteText,
-      billedCodes,
-      finding: briefFinding,
-      analyses: result?.code_analyses,
-      totalImpact: result?.total_impact,
-      detected: result?.detected,
-      liveNarrative: result?.source === "live" ? result?.legal_brief : undefined,
-    });
-  }, [tc, result, detectorVerdict]);
   return (
     <div className="space-y-4">
       <Card className="overflow-hidden">
@@ -1451,43 +1190,32 @@ function VerdictStep({ tc, onReplay }: { tc: TourCase; onReplay: () => void }) {
               <p className="text-sm leading-relaxed text-[var(--foreground)]">{tc.verdictConclusion}</p>
             </div>
           </div>
+        </div>
+      </Card>
 
-          {/* Legal brief — first-class textgen output (sober/printable).
-              Rich multi-section brief built deterministically from the detector
-              findings + the tour case. */}
-          <div className="surface-sober mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-            <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[var(--surface-sober-ink)]">
-              <Scale className="h-3.5 w-3.5 text-[var(--accent)]" /> Legal brief
-              <span className="font-normal normal-case tracking-normal text-[var(--muted)]">
-                · generated by textgen (Guided Docs) · preliminary, not a determination
-              </span>
+      {/* When used standalone (not in the Investigate tab), render the embedded
+          legal brief + TryItYourself + footer. The Investigate tab passes
+          hideExtras and renders those as separate click-revealed stages. */}
+      {!hideExtras && (
+        <>
+          <LegalBriefBlock tc={tc} />
+          <TryItYourself initialCaseId={tc.caseId} />
+          <Card className="px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                <Receipt className="h-4 w-4 text-[var(--muted-2)]" />
+                Deterministic replay — same timing, same evidence, every run.
+              </div>
+              <button
+                onClick={onReplay}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
+              >
+                <RotateCcw className="h-3.5 w-3.5" /> Take the tour again
+              </button>
             </div>
-            <LegalBriefView brief={legalBriefText} />
-            <p className="mt-3 border-t border-[var(--border-sober)] pt-2 text-[11px] italic leading-snug text-[var(--muted)]">
-              This AI-generated analysis is a preliminary investigation assessment and does not constitute a legal
-              conclusion or a determination of fraud. Mere coding discrepancies do not establish a violation.
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      {/* Try it yourself — run the real coding-expert on this case's note. */}
-      <TryItYourself initialCaseId={tc.caseId} />
-
-      <Card className="px-5 py-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
-            <Receipt className="h-4 w-4 text-[var(--muted-2)]" />
-            Deterministic replay — same timing, same evidence, every run.
-          </div>
-          <button
-            onClick={onReplay}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
-          >
-            <RotateCcw className="h-3.5 w-3.5" /> Take the tour again
-          </button>
-        </div>
-      </Card>
+          </Card>
+        </>
+      )}
     </div>
   );
 }

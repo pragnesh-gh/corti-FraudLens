@@ -3,14 +3,15 @@
 /**
  * /tour/[caseId] — the Live Demo case experience.
  *
- * A thin wrapper that resolves the tour case and renders the <TourEngine>,
- * the 7-step runner (intro → note → billed → predicted → retrace → impact →
- * verdict) with full deterministic/auto-advance + manual step-through controls.
- * The engine fires the real Corti pipeline in the background and surfaces
- * "confirmed live" badges when it lands.
+ * A thin wrapper that resolves the tour case and renders the
+ * <LiveDemoExperience>, a click-driven, coding-demo-style flow: land on a
+ * "Try it yourself" start screen, click to RUN the coding-expert agent, then
+ * click through three tabs — Run → Compare → Investigate — to walk the full
+ * pipeline (predict → compare → retrace → judgement → legal brief). Nothing
+ * runs in the background; nothing auto-advances between tabs.
  *
- * The history-dependent case (case_history_012) renders the "Pull patient
- * history" mind-change step via TourEngine's HistoryRetraceStep.
+ * The history-dependent case (case_history_012) surfaces the "Pull patient
+ * history" mind-change inside the Investigate tab.
  *
  * Pure React/CSS — no screenshots, no multimodal, no new deps.
  */
@@ -19,7 +20,7 @@ import { use } from "react";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { getTourCase } from "@/lib/tour-cases";
-import { TourEngine } from "@/components/tour/tour-engine";
+import { LiveDemoExperience } from "@/components/tour/tour-engine";
 
 export default function TourCasePage({ params }: { params: Promise<{ caseId: string }> }) {
   const { caseId } = use(params);
@@ -43,5 +44,5 @@ export default function TourCasePage({ params }: { params: Promise<{ caseId: str
     );
   }
 
-  return <TourEngine tc={tc} />;
+  return <LiveDemoExperience tc={tc} />;
 }
