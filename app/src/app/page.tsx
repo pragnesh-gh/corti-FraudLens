@@ -224,9 +224,9 @@ export default function CaseQueuePage() {
                 <th className="px-4 py-2.5 font-medium">Case</th>
                 <th className="px-4 py-2.5 font-medium">Provider</th>
                 <th className="px-4 py-2.5 font-medium">DOS</th>
-                <th className="px-4 py-2.5 font-medium">Flags</th>
-                <th className="px-4 py-2.5 font-medium">Intent</th>
-                <th className="px-4 py-2.5 text-right font-medium">Risk</th>
+                <th className="px-4 py-2.5 text-center font-medium">Flags</th>
+                <th className="px-4 py-2.5 text-center font-medium">Intent</th>
+                <th className="px-4 py-2.5 text-center font-medium">Risk</th>
                 <th className="px-4 py-2.5 text-right font-medium">Est. $ impact</th>
                 <th className="px-2 py-2.5"></th>
               </tr>
@@ -247,17 +247,17 @@ export default function CaseQueuePage() {
                     {w.fraud_types.length === 0 ? (
                       <span className="text-xs text-[var(--muted-2)]">—</span>
                     ) : (
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap justify-center gap-1">
                         {w.fraud_types.map((t) => (
                           <FraudChip key={t} type={t} />
                         ))}
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 text-center">
                     <IntentBadge intent={w.intent} />
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-center">
                     {w.risk_score > 0 ? <RiskBadge score={w.risk_score} /> : <span className="text-xs text-[var(--muted-2)]">—</span>}
                   </td>
                   <td className="px-4 py-3 text-right font-semibold tabular-nums">
