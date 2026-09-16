@@ -199,3 +199,108 @@ body {
 .tour-step-in {
   animation: tour-step-in 0.4s ease-out both;
 }
+
+/* ---- Coding-demo animations ---- */
+
+/* Phase 1: a phrase in the note lights up as the coding expert "reads" it.
+   Underline + soft accent background, then holds. */
+@keyframes cd-phrase-read {
+  0% {
+    background-color: transparent;
+    text-decoration-color: transparent;
+  }
+  20% {
+    background-color: var(--accent-soft);
+    text-decoration-color: var(--accent);
+  }
+  100% {
+    background-color: var(--accent-soft);
+    text-decoration-color: var(--accent);
+  }
+}
+.cd-phrase-read {
+  animation: cd-phrase-read 0.55s ease-out both;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* Phase 1: a freshly extracted code card pops out of the phrase toward the
+   extracted-codes panel (scale + slight translate, then settle). */
+@keyframes cd-extract-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6) translateX(18px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.04) translateX(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateX(0);
+  }
+}
+.cd-extract-pop {
+  animation: cd-extract-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Phase 1: the connector line that draws from the highlighted phrase to the
+   new code card, giving the "phrase becomes a code" feel. */
+@keyframes cd-connector-draw {
+  from {
+    transform: scaleX(0);
+    opacity: 0.4;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+.cd-connector-draw {
+  transform-origin: left center;
+  animation: cd-connector-draw 0.4s ease-out both;
+}
+
+/* Phase 3: a "scanning" sweep highlight that travels down through the note
+   text while the agent hunts for supporting evidence. Uses a moving
+   linear-gradient background. */
+@keyframes cd-scan-sweep {
+  0% {
+    background-position: 0% 0;
+  }
+  100% {
+    background-position: 0% 100%;
+  }
+}
+.cd-scan-sweep {
+  background-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    var(--accent-soft) 48%,
+    var(--accent-soft) 52%,
+    transparent 100%
+  );
+  background-size: 100% 240%;
+  background-repeat: no-repeat;
+  animation: cd-scan-sweep 1.8s ease-in-out both;
+}
+
+/* Phase 3: a contradiction phrase in the note flashes red (the note says the
+   opposite of the billed diagnosis). Two beats then holds soft-red. */
+@keyframes cd-contradiction-flash {
+  0%,
+  100% {
+    background-color: var(--risk-high-soft);
+  }
+  35%,
+  70% {
+    background-color: var(--risk-high);
+    color: #fff;
+  }
+}
+.cd-contradiction-flash {
+  animation: cd-contradiction-flash 1.2s ease-out both;
+  border-radius: 3px;
+}
+

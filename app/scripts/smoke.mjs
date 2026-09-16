@@ -75,6 +75,12 @@ const ROUTES = [
     expect: ["demo"], // presenter overlay
     notExpect: [],
   },
+  {
+    path: "/coding-demo",
+    name: "Coding Expert demo",
+    expect: ["Coding Expert", "case_padding_002", "Extract", "Compare", "Investigate"],
+    notExpect: [],
+  },
 ];
 
 async function discoverHeroCaseId() {

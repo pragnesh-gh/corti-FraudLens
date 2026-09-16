@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { ShieldCheck, ListFilter, LayoutDashboard, Stethoscope, GraduationCap, Play } from "lucide-react";
+import { ShieldCheck, ListFilter, LayoutDashboard, Stethoscope, GraduationCap, Play, ScanSearch } from "lucide-react";
 import type { Role } from "@/lib/types";
 
 const ROLE_FRAMING: Record<Role, { label: string; tagline: string; cta: string }> = {
@@ -35,6 +35,7 @@ const NAV = [
   { href: "/", label: "Case Queue", icon: ListFilter },
   { href: "/providers", label: "Providers", icon: LayoutDashboard },
   { href: "/tour", label: "Guided Tour", icon: GraduationCap },
+  { href: "/coding-demo", label: "Coding Demo", icon: ScanSearch },
   { href: "/demo", label: "Demo", icon: Play },
 ];
 
