@@ -560,8 +560,8 @@ function CompareTab({
           }
         />
         <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-3">
-          <Bucket title="Common" caption="On both — grounded" tone="good" codes={matched} />
-          <Bucket title="Over-billed" caption="Billed, not predicted — investigate" tone="bad" codes={overBilled} />
+          <Bucket title="Common" caption="Billed and predicted — grounded" tone="good" codes={matched} />
+          <Bucket title="Over-billed" caption="Billed, not predicted — retrace checks if the note justifies them" tone="bad" codes={overBilled} />
           <Bucket title="Under-billed" caption="Predicted, not billed" tone="neutral" codes={underBilled} />
         </div>
       </Card>
@@ -569,8 +569,8 @@ function CompareTab({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-[var(--foreground)]">
             {overBilled.length > 0
-              ? `${overBilled.length} code(s) billed but not predicted — investigate the gaps.`
-              : "No over-billed codes — the bill aligns with the note."}
+              ? `${overBilled.length} code(s) billed but not predicted. Investigate checks whether the note actually justifies each one — a high support score means the note backs the code; a low one means it likely doesn’t.`
+              : "No over-billed codes — every billed code was predicted from the note."}
           </p>
           <button
             onClick={onInvestigate}
@@ -707,14 +707,14 @@ function InvestigateTab({
       {/* Stage 0 — retrace */}
       <Card className="overflow-hidden">
         <CardHeader
-          title="Retrace — per over-billed code"
-          subtitle="The agentic framework rates agreeability + grounding and cites the note."
+          title="Retrace — each billed code the model did not predict"
+          subtitle="For every billed code the coding-expert did not predict, the agentic framework checks whether the clinical note actually justifies billing it — and cites the note."
           right={<BrainCircuit className="h-4 w-4 text-[var(--accent)]" />}
         />
         <div className="space-y-3 p-4">
           {overBilled.length === 0 && (
             <div className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-2)]/40 px-4 py-6 text-center text-sm text-[var(--muted)]">
-              No over-billed codes to retrace — the bill aligns with the note.
+              No billed codes to retrace — every billed code was predicted from the note.
             </div>
           )}
           {overBilled.map((a) => (
@@ -870,15 +870,27 @@ function InvestigateTab({
 }
 
 function RetraceCard({ analysis }: { analysis: CodeAnalysis }) {
+  // Grounding = "is this billed code supported by the note?" Translate the
+  // internal label into plain language so a reader knows what's being judged.
   const groundingLabel =
+    analysis.grounding === "supported" ? "Supported by the note"
+      : analysis.grounding === "weakly_supported" ? "Weakly supported by the note"
+        : analysis.grounding === "contradicted" ? "Contradicted by the note"
+          : "Not supported by the note";
+  const groundingShort =
     analysis.grounding === "supported" ? "Supported"
-      : analysis.grounding === "weakly_supported" ? "Weakly supported"
+      : analysis.grounding === "weakly_supported" ? "Weak"
         : analysis.grounding === "contradicted" ? "Contradicted"
           : "Unsupported";
   const groundingTone =
     analysis.grounding === "supported" ? "var(--risk-low)"
       : analysis.grounding === "weakly_supported" ? "var(--risk-med)"
         : "var(--risk-high)";
+  // Agreeability: 0 = the note does not support this code (likely fraud),
+  // 100 = the note fully supports it (at most a minor/coding miss). Show the
+  // score as "Note support" so it reads as a plain percentage, with the
+  // direction stated in the caption instead of a cryptic parenthetical.
+  const support = Math.round(analysis.agreeability);
   return (
     <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -886,17 +898,34 @@ function RetraceCard({ analysis }: { analysis: CodeAnalysis }) {
           <span className="font-mono text-sm font-bold text-[var(--foreground)]">{analysis.code}</span>
           <span className="text-xs text-[var(--muted)]">{analysis.description}</span>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold" style={{ background: `${groundingTone}22`, color: groundingTone }}>
-          <ScanSearch className="h-3 w-3" /> {groundingLabel}
+        <span
+          className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold"
+          style={{ background: `${groundingTone}22`, color: groundingTone }}
+          title={groundingLabel}
+        >
+          <ScanSearch className="h-3 w-3" /> {groundingShort}
         </span>
       </div>
+
+      {/* Plain-language grounding verdict — what "supported/unsupported" means. */}
+      <div className="mt-2.5 flex items-start gap-1.5 text-xs leading-relaxed text-[var(--muted)]">
+        <span className="font-medium text-[var(--foreground)]">{analysis.code}</span>
+        <span>
+          is <span className="font-semibold" style={{ color: groundingTone }}>{groundingLabel.toLowerCase()}</span> — the agent checked whether the clinical note justifies billing this code.
+        </span>
+      </div>
+
       <div className="mt-3">
         <div className="flex items-center justify-between text-[11px]">
-          <span className="text-[var(--muted-2)]">Agreeability (0 = likely fraud, 100 = minor miss)</span>
-          <span className="font-semibold tabular-nums text-[var(--foreground)]">{Math.round(analysis.agreeability)}</span>
+          <span className="text-[var(--muted-2)]">Note support — how well the note justifies this code</span>
+          <span className="font-semibold tabular-nums text-[var(--foreground)]">{support}/100</span>
         </div>
         <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]">
-          <div className="h-full rounded-full" style={{ width: `${analysis.agreeability}%`, background: groundingTone }} />
+          <div className="h-full rounded-full" style={{ width: `${support}%`, background: groundingTone }} />
+        </div>
+        <div className="mt-1 flex items-center justify-between text-[10px] text-[var(--muted-2)]">
+          <span>0 = note doesn&apos;t justify it (likely fraud)</span>
+          <span>100 = note justifies it (minor miss at most)</span>
         </div>
       </div>
       {analysis.rationale && (
