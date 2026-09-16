@@ -97,6 +97,102 @@
 
   /* ---- Focus halo (per spec: coral border + ambient exterior halo) ---- */
   --focus-halo: 0 0 0 3px rgba(255, 122, 80, 0.15);
+
+  /* ---- Theme-aware frosted header (set per theme) ---- */
+  --header-glass: rgba(19, 19, 24, 0.8); /* dark navbar scrim */
+}
+
+/* ---- Light mode — "Obsidian Sunset" light counterpart (warm twilight on cream).
+   Same accent family as dark (coral / periwinkle / peach), deepened only where
+   needed for AA contrast on light surfaces. Depth still reads from opaque
+   surface tiers + a 1px inset top-edge specularity, never colored glow.
+   Applied on <html data-theme="light">; dark remains the default. */
+:root[data-theme="light"] {
+  /* ---- Canvas & elevation (warm cream / white tiers) ---- */
+  --background: #fbf9f6; /* warm cream canvas */
+  --background-2: #ffffff; /* surface elevation 1 */
+  --surface: #ffffff; /* surface elevation 2 (cards) */
+  --surface-glass: rgba(255, 255, 255, 0.72); /* glass overlay tier */
+  --surface-glass-strong: rgba(255, 255, 255, 0.88); /* floating tier */
+  --surface-2: rgba(42, 42, 54, 0.035); /* alt rows / wells */
+  /* sober surfaces stay light in both themes — unchanged */
+
+  /* ---- Borders & dividers (lighter hairline) ---- */
+  --border: rgba(42, 42, 54, 0.12);
+  --border-strong: rgba(42, 42, 54, 0.2);
+  /* --border-sober unchanged (already light) */
+
+  /* ---- Text (dark ink on cream) ---- */
+  --foreground: #1a1a2e;
+  --muted: #6b6580;
+  --muted-2: rgba(107, 101, 128, 0.62);
+
+  /* ---- Accents: same family, deepened for contrast on light ---- */
+  --accent: #f0612e; /* deeper coral for text-on-light */
+  --accent-soft: rgba(240, 97, 46, 0.12);
+  --accent-soft-2: rgba(240, 97, 46, 0.07);
+  --accent-tint: #c44a1f; /* on-accent readable coral tint (darker for light) */
+  --tertiary: #e89a6a; /* peach, slightly deepened */
+  --secondary: #3b6fd4; /* deeper periwinkle for text-on-light */
+
+  /* ---- Semantic risk colors (deepened for AA on light) ---- */
+  --risk-high: #e0452e;
+  --risk-high-soft: rgba(224, 69, 46, 0.12);
+  --risk-med: #d97706;
+  --risk-med-soft: rgba(217, 119, 6, 0.12);
+  --risk-low: #16a34a;
+  --risk-low-soft: rgba(22, 163, 74, 0.12);
+
+  /* ---- Capability accents (same family, deepened softs) ---- */
+  --cap-textgen: #3b6fd4;
+  --cap-textgen-soft: rgba(59, 111, 212, 0.1);
+  --cap-coding: #16a34a;
+  --cap-coding-soft: rgba(22, 163, 74, 0.1);
+  --cap-agentic: #f0612e;
+  --cap-agentic-soft: rgba(240, 97, 46, 0.12);
+
+  /* ---- Per-fraud-type accents (same family, deepened where needed) ---- */
+  --fraud-upcoding: #f0612e;
+  --fraud-upcoding-soft: rgba(240, 97, 46, 0.12);
+  --fraud-unbundling: #d97706;
+  --fraud-unbundling-soft: rgba(217, 119, 6, 0.12);
+  --fraud-phantom: #3b6fd4;
+  --fraud-phantom-soft: rgba(59, 111, 212, 0.1);
+  --fraud-dx-inflation: #e87f4f;
+  --fraud-dx-inflation-soft: rgba(232, 127, 79, 0.12);
+  --fraud-cloning: #6b8fd9;
+  --fraud-cloning-soft: rgba(107, 143, 217, 0.12);
+
+  /* ---- Shadow & depth (light: feather-light neutral lift + top-edge highlight) ---- */
+  --glow-accent: 0 0 0 1px rgba(240, 97, 46, 0.4); /* crisp coral rim, not a bloom */
+  --glow-accent-hover: 0 0 0 1px rgba(240, 97, 46, 0.55);
+  --shadow-glass: 0 1px 2px 0 rgba(42, 42, 54, 0.08), inset 0 1px 0 0 rgba(255, 255, 255, 0.8);
+  --shadow-float: 0 12px 36px -4px rgba(42, 42, 54, 0.16), 0 0 0 1px rgba(42, 42, 54, 0.12);
+  --shadow-card: 0 1px 2px rgba(42, 42, 54, 0.05);
+
+  /* ---- Gradients (kept; coral→peach ramp reads well on light) ---- */
+  /* --grad-* unchanged — the sunset ramp is accent-on-white, works in both themes */
+  --risk-outline: linear-gradient(135deg, rgba(240, 97, 46, 0.4), rgba(232, 127, 79, 0.2) 40%, rgba(255, 255, 255, 0.4) 100%);
+  --focus-halo: 0 0 0 3px rgba(240, 97, 46, 0.14);
+
+  /* Light navbar scrim — white glass, slightly more opaque for legibility */
+  --header-glass: rgba(255, 255, 255, 0.78);
+}
+
+/* Light-mode glass: white glass + lighter top-edge specularity. The .glass /
+   .glass-strong utility classes consume these vars, so they adapt automatically. */
+:root[data-theme="light"] .glass {
+  background: var(--surface-glass);
+}
+:root[data-theme="light"] .glass-strong {
+  background: var(--surface-glass-strong);
+}
+
+/* Light-mode body atmosphere: fainter warm wash (not a glow source). */
+:root[data-theme="light"] body {
+  background-image:
+    radial-gradient(circle at 85% 0%, rgba(240, 97, 46, 0.04), transparent 42%),
+    radial-gradient(circle at 10% 100%, rgba(59, 111, 212, 0.035), transparent 48%);
 }
 
 @theme inline {

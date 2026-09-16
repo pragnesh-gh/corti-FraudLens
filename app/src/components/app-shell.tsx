@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { ShieldCheck, ListFilter, LayoutDashboard, Zap, Play, ScanSearch, Network } from "lucide-react";
+import { ShieldCheck, ListFilter, LayoutDashboard, Zap, Play, ScanSearch, Network, Sun, Moon } from "lucide-react";
 import type { Role } from "@/lib/types";
 
 const ROLE_FRAMING: Record<Role, { label: string; tagline: string; cta: string }> = {
@@ -26,6 +26,7 @@ const ROLE_FRAMING: Record<Role, { label: string; tagline: string; cta: string }
 };
 
 export const ROLE_STORAGE_KEY = "fraudlens-role";
+export const THEME_STORAGE_KEY = "fraudlens-theme";
 
 export function getFraming(role: Role) {
   return ROLE_FRAMING[role];
@@ -43,6 +44,26 @@ const NAV = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [role, setRole] = useState<Role>("investigator");
+  // Theme: default "dark". The no-FOUC script in layout.tsx sets the initial
+  // data-theme before paint; here we sync React state to it and toggle on click.
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    // Sync to whatever the inline script already applied (avoids hydration mismatch).
+    const current = document.documentElement.dataset.theme === "light" ? "light" : "dark";
+    setTheme(current);
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    document.documentElement.dataset.theme = next;
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch {
+      /* ignore (private mode / disabled storage) */
+    }
+  };
 
   return (
     <div className="relative flex min-h-screen flex-col">
@@ -50,7 +71,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header
         className="sticky top-0 z-30 border-b border-[var(--border)]"
         style={{
-          background: "rgba(19, 19, 24, 0.8)",
+          background: "var(--header-glass)",
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
         }}
@@ -109,7 +130,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          {/* Role toggle */}
+          {/* Role toggle + theme toggle */}
           <div className="ml-auto flex items-center gap-2">
             <div className="flex rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-0.5">
               {(Object.keys(ROLE_FRAMING) as Role[]).map((r) => (
@@ -127,6 +148,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </button>
               ))}
             </div>
+            <button
+              onClick={toggleTheme}
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
           </div>
         </div>
       </header>

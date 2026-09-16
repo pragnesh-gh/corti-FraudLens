@@ -39,6 +39,17 @@ export default function RootLayout({
       lang="en"
       className={`${jakarta.variable} ${inter.variable} ${jetbrains.variable} h-full antialiased`}
     >
+      <head>
+        {/* No-FOUC theme bootstrap: apply the saved theme before paint so the
+            app never flashes dark-then-light (or vice versa). Runs synchronously
+            in <head>, before React hydrates. Default is dark. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var t=localStorage.getItem('fraudlens-theme')||'dark';document.documentElement.dataset.theme=t;}catch(e){}})();",
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">
         <AppShell>{children}</AppShell>
       </body>
