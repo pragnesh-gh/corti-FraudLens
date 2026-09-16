@@ -47,10 +47,10 @@ import {
   History,
   ArrowLeft,
   Zap,
+  Loader2,
 } from "lucide-react";
 import type { TourCase } from "./tour-types";
 import { CodeCard, SeverityMeter, DeltaChip, ConfidenceGauge } from "./tour-widgets";
-import { TryItYourself } from "./try-it-yourself";
 import { getCaseResult } from "@/lib/data";
 import { buildLegalBrief, findingFromResult } from "@/lib/legal-brief";
 import { LegalBriefView } from "@/components/legal-brief-view";
@@ -85,9 +85,9 @@ const TABS: { id: Tab; label: string; icon: typeof Sparkles }[] = [
 
 export function LiveDemoExperience({ tc }: { tc: TourCase }) {
   const [tab, setTab] = useState<Tab>("run");
-  // Whether the user has kicked off the coding-expert run in Tab 1. The run
-  // itself is owned by the TryItYourself component (click-driven); this just
-  // gates the "Compare" advance until a run has happened.
+  // Whether the user has kicked off the coding-expert run in the Run tab. The
+  // run itself is owned by RunTab (click-driven); this just gates the "Compare"
+  // advance until a run has happened.
   const [hasRun, setHasRun] = useState(false);
 
   // Investigate tab: click-to-reveal sub-steps (not auto-timed).
@@ -166,26 +166,28 @@ export function LiveDemoExperience({ tc }: { tc: TourCase }) {
         </div>
       </Card>
 
-      {/* Two-column workstation — coding-demo style.
-          Clinical note pinned LEFT (constant across tabs); the active tab's
-          work happens on the RIGHT. Collapses to a single column on small
-          screens so the note stacks above the work. The tab header/controls
-          above stay full-width and reachable. */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_1fr]">
-        <NotePanel tc={tc} />
-
-        {/* Right column — the active tab's work. Keyed so the tour-step-in
-            animation re-runs on tab change; the left note stays put. */}
-        <div key={tab} className="tour-step-in">
-          {tab === "run" && (
+      {/* Per-tab layout.
+          Run tab = two-column workstation (note pinned left, run work right),
+          matching the coding demo. Compare and Investigate are full-width,
+          single-column — the clinical note does NOT persist across tabs. */}
+      {tab === "run" && (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_1fr]">
+          <NotePanel tc={tc} />
+          <div key="run" className="tour-step-in">
             <RunTab tc={tc} onRan={() => setHasRun(true)} hasRun={hasRun} onCompare={goCompare} />
-          )}
-          {tab === "compare" && <CompareTab tc={tc} onInvestigate={goInvestigate} />}
-          {tab === "investigate" && (
-            <InvestigateTab tc={tc} stage={invStage} setStage={setInvStage} onRestart={restart} />
-          )}
+          </div>
         </div>
-      </div>
+      )}
+      {tab === "compare" && (
+        <div key="compare" className="tour-step-in">
+          <CompareTab tc={tc} onInvestigate={goInvestigate} />
+        </div>
+      )}
+      {tab === "investigate" && (
+        <div key="investigate" className="tour-step-in">
+          <InvestigateTab tc={tc} stage={invStage} setStage={setInvStage} onRestart={restart} />
+        </div>
+      )}
 
       {/* Footer exit */}
       <Card className="px-4 py-3">
@@ -290,9 +292,19 @@ function NotePanel({ tc }: { tc: TourCase }) {
 }
 
 // ---------------------------------------------------------------------------
-// Tab 1 — Run: the Try-it-yourself start screen.
-// The user clicks "Run the coding-expert agent". Nothing runs before that.
+// Tab 1 — Run: a single "Run the coding-expert" button. Click it → the agent
+// predicts codes → they appear below → a "Compare with the bill" advance
+// appears. No template picker, no editable note, no Try-it-yourself chrome —
+// the run uses this case's note (read-only on the left NotePanel). Nothing
+// fires on mount except the armed-probe GET; the POST is click-driven.
 // ---------------------------------------------------------------------------
+
+interface RunResult {
+  source: "live" | "replay";
+  region?: string;
+  predictedCodes: { dx: { code: string; description: string }[]; procedures: { code: string; description: string }[] };
+  error?: string;
+}
 
 function RunTab({
   tc,
@@ -305,12 +317,118 @@ function RunTab({
   hasRun: boolean;
   onCompare: () => void;
 }) {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<RunResult | null>(null);
+  const [liveArmed, setLiveArmed] = useState(false);
+
+  // Probe armed state once on mount (read-only GET — does NOT run the agent).
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/coding-expert")
+      .then((r) => r.json())
+      .then((d) => !cancelled && setLiveArmed(Boolean(d.live)))
+      .catch(() => !cancelled && setLiveArmed(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Reveal the "Compare" advance as soon as a prediction is available.
+  useEffect(() => {
+    if (result) onRan();
+  }, [result, onRan]);
+
+  async function run() {
+    setRunning(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/coding-expert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: tc.noteText }),
+      });
+      const data = (await res.json()) as RunResult;
+      setResult(data);
+    } catch {
+      setResult({ source: "replay", predictedCodes: { dx: [], procedures: [] }, error: "Request failed." });
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  const predicted = [...(result?.predictedCodes.dx ?? []), ...(result?.predictedCodes.procedures ?? [])];
+
   return (
     <div className="space-y-4">
-      {/* The hands-on start screen: template + note + run button.
-          The run is click-driven inside TryItYourself. We surface a "Compare"
-          advance once the user has run it. */}
-      <RunWrap tc={tc} onRan={onRan} />
+      <Card className="overflow-hidden">
+        <CardHeader
+          title="Run the coding-expert"
+          subtitle="Click to run the coding-expert agent on this case's note."
+          right={
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                liveArmed
+                  ? "border-[var(--risk-low)]/30 bg-[var(--risk-low-soft)] text-[var(--risk-low)]"
+                  : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)]",
+              )}
+            >
+              <span className={cn("h-1.5 w-1.5 rounded-full", liveArmed ? "bg-[var(--risk-low)]" : "bg-[var(--muted-2)]")} />
+              {liveArmed ? "Live armed" : "Replay mode"}
+            </span>
+          }
+        />
+        <div className="space-y-4 p-5">
+          <button
+            onClick={run}
+            disabled={running}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+          >
+            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {running ? "Agent running…" : "Run the coding-expert"}
+          </button>
+
+          {/* Prediction */}
+          {result && (
+            <div className="animate-fade-rise space-y-3 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-sm font-semibold">
+                  <Zap className="h-4 w-4 text-[var(--accent)]" />
+                  Agent prediction
+                </div>
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                    result.source === "live"
+                      ? "bg-[var(--risk-low-soft)] text-[var(--risk-low)]"
+                      : "bg-[var(--surface)] text-[var(--muted)]",
+                  )}
+                >
+                  {result.source === "live" ? `Live · ${result.region ?? "?"}` : "Replay"}
+                </span>
+              </div>
+              {result.error && <p className="text-xs text-[var(--risk-med)]">{result.error}</p>}
+              {predicted.length === 0 && !result.error ? (
+                <div className="rounded-lg border border-dashed border-[var(--border)] px-3 py-3 text-xs text-[var(--muted-2)]">
+                  No codes returned.
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {predicted.map((c, i) => (
+                    <div
+                      key={i}
+                      className="flex items-start gap-2 rounded-lg border border-[var(--risk-low)]/20 bg-[var(--risk-low-soft)]/40 px-2.5 py-1.5"
+                    >
+                      <span className="font-mono text-xs font-semibold text-[var(--foreground)]">{c.code}</span>
+                      <span className="text-xs text-[var(--muted)]">{c.description}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Card>
 
       {/* Advance to Compare once the user has run it. */}
       {hasRun && (
@@ -331,13 +449,6 @@ function RunTab({
       )}
     </div>
   );
-}
-
-/** Renders TryItYourself and calls onRan when a run completes. TryItYourself
- *  fires its onRan callback directly when its result state flips non-null — a
- *  clean prop bridge, no DOM-sniffing. */
-function RunWrap({ tc, onRan }: { tc: TourCase; onRan: () => void }) {
-  return <TryItYourself initialCaseId={tc.caseId} onRan={onRan} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -580,7 +691,7 @@ function InvestigateTab({
       {/* Stage 1: verdict. */}
       {stage >= 1 && (
         <div className="animate-fade-rise space-y-4">
-          <VerdictStep tc={tc} onReplay={onRestart} hideExtras />
+          <VerdictStep tc={tc} />
           {/* Reveal the legal brief — click. */}
           {stage < 2 && (
             <Card className="px-4 py-3">
@@ -1154,20 +1265,12 @@ function HistoryRetraceStep({ tc }: { tc: TourCase }) {
 }
 
 // ---------------------------------------------------------------------------
-// Step renderer — Verdict. Reused by the Investigate tab.
-// `hideExtras` suppresses the embedded legal brief + TryItYourself + footer
-// (the Investigate tab renders those as separate click-revealed stages).
+// Step renderer — Verdict. Rendered by the Investigate tab; the legal brief and
+// "take the tour again" footer are rendered as separate click-revealed stages
+// by the Investigate tab, so this card is just the verdict itself.
 // ---------------------------------------------------------------------------
 
-function VerdictStep({
-  tc,
-  onReplay,
-  hideExtras = false,
-}: {
-  tc: TourCase;
-  onReplay: () => void;
-  hideExtras?: boolean;
-}) {
+function VerdictStep({ tc }: { tc: TourCase }) {
   const result = useDetectorResult(tc.caseId);
   const finding = result?.findings[0];
   const detectorCategory = finding?.fraud_type;
@@ -1250,30 +1353,6 @@ function VerdictStep({
           </div>
         </div>
       </Card>
-
-      {/* When used standalone (not in the Investigate tab), render the embedded
-          legal brief + TryItYourself + footer. The Investigate tab passes
-          hideExtras and renders those as separate click-revealed stages. */}
-      {!hideExtras && (
-        <>
-          <LegalBriefBlock tc={tc} />
-          <TryItYourself initialCaseId={tc.caseId} />
-          <Card className="px-5 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                <Receipt className="h-4 w-4 text-[var(--muted-2)]" />
-                Deterministic replay — same timing, same evidence, every run.
-              </div>
-              <button
-                onClick={onReplay}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> Take the tour again
-              </button>
-            </div>
-          </Card>
-        </>
-      )}
     </div>
   );
 }
