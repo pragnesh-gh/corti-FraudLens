@@ -2,10 +2,23 @@
   "case_id": "case_clean_014",
   "fraud_type": "clean",
   "predicted_codes": {
-    "procedures": ["99214"],
-    "dx": ["I10", "E11.9", "E78.5"]
+    "procedures": ["99214", "93000", "94060"],
+    "dx": ["R07.9", "I10", "E78.5", "J45.20"]
   },
   "analyses": [
+    {
+      "code": "R07.9",
+      "description": "Chest pain, unspecified",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [
+        "CC: Chest tightness and shortness of breath for the past 3 days.",
+        "1. Atypical chest pain, rule out cardiac etiology — exertional chest discomfort with risk factors (HTN, HLD, former smoker); cardiac etiology cannot be excluded."
+      ],
+      "confidence": 0.97
+    },
     {
       "code": "I10",
       "description": "Essential (primary) hypertension",
@@ -14,21 +27,8 @@
       "agreeability": 100,
       "grounding": "supported",
       "noteExcerpts": [
-        "Past medical history: Type 2 diabetes mellitus, essential hypertension, hyperlipidemia.",
-        "2. Essential hypertension - Well controlled on lisinopril 10 mg daily. Continue current regimen."
-      ],
-      "confidence": 0.96
-    },
-    {
-      "code": "E11.9",
-      "description": "Type 2 diabetes mellitus without complications",
-      "predicted": true,
-      "match": "exact",
-      "agreeability": 100,
-      "grounding": "supported",
-      "noteExcerpts": [
-        "HbA1c 8.1% (up from 7.2% six months ago)",
-        "1. Type 2 diabetes mellitus - A1c has risen from 7.2% to 8.1%... Will increase metformin to 1500 mg BID with meals and recheck A1c in 3 months."
+        "PMH: Hypertension (dx 2018, controlled on lisinopril).",
+        "2. Hypertension, well-controlled — continue lisinopril 10mg daily. BP 138/86."
       ],
       "confidence": 0.97
     },
@@ -40,62 +40,117 @@
       "agreeability": 100,
       "grounding": "supported",
       "noteExcerpts": [
-        "LDL 112, above goal for a diabetic patient (<100). Will increase atorvastatin to 40 mg nightly."
+        "PMH: Hyperlipidemia (dx 2019, on atorvastatin).",
+        "3. Hyperlipidemia, well-controlled — continue atorvastatin 20mg daily. Fasting lipid panel at next visit."
       ],
-      "confidence": 0.95
+      "confidence": 0.96
     },
     {
-      "code": "99214",
-      "description": "Office visit, established patient, moderate complexity",
+      "code": "J45.20",
+      "description": "Mild intermittent asthma, uncomplicated",
       "predicted": true,
       "match": "exact",
       "agreeability": 100,
       "grounding": "supported",
       "noteExcerpts": [
-        "Home glucose logs reviewed: fasting glucose 138 mg/dL average over the past 2 weeks.",
-        "HbA1c 8.1% (up from 7.2% six months ago), LDL 112...",
-        "Will increase metformin to 1500 mg BID with meals and recheck A1c in 3 months.",
-        "Will increase atorvastatin to 40 mg nightly. Discussed statin side effects to monitor (muscle aches)..."
+        "PMH: Asthma, mild intermittent (dx 2015).",
+        "4. Asthma, mild intermittent — spirometry performed: FEV1 2.8L (88% predicted), FEV1/FVC 0.82, no reversibility post-bronchodilator."
       ],
-      "confidence": 0.93,
-      "rationale": "99214 (established patient, moderate MDM) is fully supported. The note documents moderate complexity across all 3 MDM elements per the 2021+ AMA/CMS office-visit E/M rules: (1) multiple stable chronic conditions with progression (diabetes A1c rose 7.2%->8.1% requiring a medication change); (2) moderate data (review of an outside-lab A1c and lipid panel, plus home glucose logs); (3) moderate risk (prescription drug management requiring monitoring — metformin increased, new higher-dose statin). The coding expert predicts the same four codes the provider billed."
+      "confidence": 0.96
+    },
+    {
+      "code": "99214",
+      "description": "Established patient office visit, moderate MDM",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [
+        "1. Atypical chest pain, rule out cardiac etiology — exertional chest discomfort with risk factors (HTN, HLD, former smoker); cardiac etiology cannot be excluded. ECG ordered... Troponin ordered (pending). Referred to cardiology for stress test.",
+        "4. Asthma, mild intermittent — spirometry performed: FEV1 2.8L (88% predicted)... Albuterol inhaler adequate for symptom relief. Continue PRN use.",
+        "Meds: Lisinopril 10mg daily, Atorvastatin 20mg daily, Albuterol inhaler PRN."
+      ],
+      "confidence": 0.94,
+      "rationale": "99214 (established patient, moderate MDM) is fully supported. The note documents moderate complexity across the 2021+ AMA/CMS office-visit E/M rules: (1) multiple problems including a NEW acute problem (R07.9 chest pain requiring a cardiac workup) plus three stable chronic conditions (I10, E78.5, J45.20); (2) moderate data — ordering and review of tests (ECG, troponin, spirometry with bronchodilator response); (3) moderate risk — prescription drug management (lisinopril, atorvastatin, albuterol) plus a cardiology referral. Modifier -25 marks a significant separately identifiable E/M same day as the procedures. The coding expert predicts the same seven codes the provider billed."
+    },
+    {
+      "code": "93000",
+      "description": "Electrocardiogram, complete (with interpretation and report)",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [
+        "ECG ordered (normal sinus rhythm, no ST changes, no T-wave inversions).",
+        "Procedures performed this visit: ECG 12-lead (normal sinus rhythm, rate 82, no acute ischemic changes)"
+      ],
+      "confidence": 0.95,
+      "rationale": "93000 (ECG, 12-lead, with interpretation and report) is supported: medical necessity from R07.9 chest pain (cardiac workup), and the procedure is documented as performed with an interpretation. Billed as the COMPLETE global 93000 — correctly NOT split into 93005 (tracing only) + 93010 (interpretation). Splitting would be the unbundling fraud (contrast case_unbundling_003); here it is done correctly as a single code."
+    },
+    {
+      "code": "94060",
+      "description": "Bronchodilator responsiveness test (spirometry pre- and post-bronchodilator)",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [
+        "spirometry performed: FEV1 2.8L (88% predicted), FEV1/FVC 0.82, no reversibility post-bronchodilator.",
+        "Procedures performed this visit: ...spirometry with bronchodilator response testing (pre- and post-bronchodilator measurements)."
+      ],
+      "confidence": 0.95,
+      "rationale": "94060 (bronchodilator responsiveness test) is supported: the note explicitly documents BEFORE-AND-AFTER spirometry (pre- and post-bronchodilator, 'no reversibility post-bronchodilator'). 94060 already INCLUDES the baseline spirometry (per NCCI, 94010 is a component of 94060), so billing 94060 ALONE is the single correct code. Billing 94010 + 94060 would double-bill the baseline — the expert does not split them."
     }
   ],
   "finding": {
     "fraudType": "clean",
     "verdict": "clean",
-    "confidence": 0.05,
-    "summary": "The documented encounter supports all billed codes. 99214 is the correct E/M level for the documented moderate medical decision making (a rising A1c with a medication change, outside-lab review, and prescription drug management). The diagnosis codes (I10, E11.9, E78.5) are each assessed and managed. The coding expert predicts the same codes the provider billed — no findings, no fraud.",
+    "confidence": 0.08,
+    "summary": "The documented encounter supports every billed code. 99214 is the correct E/M level for the documented moderate medical decision making (a new acute problem — chest pain requiring a cardiac workup — plus three stable chronic conditions, test ordering, prescription management, and a cardiology referral). The ECG is billed correctly as the complete 93000 (not split into 93005/93010) and spirometry as the single 94060 (not 94010 + 94060; the baseline is already included per NCCI). The diagnosis codes (R07.9, I10, E78.5, J45.20) are each assessed and managed. The coding expert predicts the same seven codes the provider billed — no findings, no fraud.",
     "details": [
+      {
+        "code": "R07.9",
+        "status": "supported",
+        "evidence": "Assessment documents atypical chest pain with exertional discomfort and cardiac risk factors; ECG and troponin ordered, cardiology referral."
+      },
       {
         "code": "I10",
         "status": "supported",
-        "evidence": "Assessment documents essential hypertension, well controlled on lisinopril; continue current regimen."
-      },
-      {
-        "code": "E11.9",
-        "status": "supported",
-        "evidence": "Assessment documents Type 2 diabetes with A1c risen from 7.2% to 8.1%; metformin increased to 1500 mg BID."
+        "evidence": "Assessment documents hypertension, well controlled on lisinopril; continue current regimen."
       },
       {
         "code": "E78.5",
         "status": "supported",
-        "evidence": "Assessment documents hyperlipidemia with LDL 112 above goal for a diabetic; atorvastatin increased to 40 mg nightly."
+        "evidence": "Assessment documents hyperlipidemia, well controlled on atorvastatin; fasting lipid panel at next visit."
+      },
+      {
+        "code": "J45.20",
+        "status": "supported",
+        "evidence": "Assessment documents mild intermittent asthma; spirometry performed, albuterol adequate, continue PRN use."
       },
       {
         "code": "99214",
         "status": "supported",
-        "evidence": "Moderate MDM documented across all 3 elements: chronic condition progression (A1c up), moderate data (outside-lab A1c/lipid review + home logs), moderate risk (Rx management with dose increases and a new higher-dose statin)."
+        "evidence": "Moderate MDM documented: new acute problem (chest pain) + 3 stable chronic conditions, test ordering (ECG, troponin, spirometry), prescription management, cardiology referral."
+      },
+      {
+        "code": "93000",
+        "status": "supported",
+        "evidence": "ECG 12-lead performed with interpretation; medical necessity from chest-pain workup. Billed as complete global 93000 — correctly not split into 93005/93010."
+      },
+      {
+        "code": "94060",
+        "status": "supported",
+        "evidence": "Before-and-after spirometry documented (pre- and post-bronchodilator). 94060 includes the baseline per NCCI — billed alone, correctly not doubled with 94010."
       },
       {
         "finding": "clean",
         "status": "clean",
-        "evidence": "All billed codes are fully supported by the note. The coding expert predicts the same codes the provider billed. This is a legitimate, well-documented claim — no fraud, no error."
+        "evidence": "All seven billed codes are fully supported by the note, and the procedures are billed the correct way (93000 as one complete code, 94060 as one code). The coding expert predicts the same codes the provider billed. This is a legitimate, well-documented claim — no fraud, no error."
       }
     ]
   },
-  "legal_brief": "The documented encounter supports all billed codes. The note documents moderate medical decision making across all three elements of the 2021+ office-visit E/M guidelines: a rising A1c with a metformin dose increase (chronic condition progression), review of an outside-lab A1c and lipid panel plus home glucose logs (moderate data), and prescription drug management requiring monitoring with a new higher-dose statin (moderate risk). 99214 is the correct E/M level. The diagnosis codes (I10, E11.9, E78.5) are each assessed and managed. The coding expert predicts the same four codes the provider billed, with nothing unmatched. Fraud type: clean. Verdict: clean — no fraud, no error. This claim is legitimate and the payment is supported.\n\n",
+  "legal_brief": "The documented encounter supports all billed codes. The note documents moderate medical decision making: a new acute problem (chest pain requiring a cardiac workup with ECG, troponin, and a cardiology referral) plus three stable chronic conditions, prescription drug management, and test ordering — meeting 99214 under the 2021+ office-visit E/M guidelines. The ECG is billed correctly as the complete 93000 (with interpretation and report), not split into the component 93005/93010. Spirometry is billed correctly as the single 94060 — the note documents before-and-after bronchodilator testing, and 94060 already includes the baseline spirometry per NCCI, so billing 94010 alongside it would be a double-bill. The diagnosis codes (R07.9, I10, E78.5, J45.20) are each assessed and managed. The coding expert predicts the same seven codes the provider billed, with nothing unmatched. Fraud type: clean. Verdict: clean — no fraud, no error. This claim is legitimate and the payment is supported.\n\n",
   "source": "live",
-  "detected": false,
-  "precomputed_at": "2026-09-16T10:30:00.000Z"
+  "precomputed_at": "2026-09-16T11:00:00.000Z"
 }

@@ -1271,24 +1271,26 @@ const DEPRESSION_PAD_013: TourCase = {
 };
 
 // ---------------------------------------------------------------------------
-// 8. case_clean_014 — clean claim (no fraud), the contrast/clean case
-//    A 66yo established patient with Type 2 diabetes, hypertension, and
-//    hyperlipidemia. The note documents MODERATE medical decision making across
-//    all 3 elements (2021+ AMA/CMS office-visit E/M rules): (1) multiple stable
-//    chronic conditions with a medication change, (2) moderate data (review of
-//    an outside-lab A1c + independent interpretation + discussion re labs), and
-//    (3) moderate risk (prescription drug management — metformin dose increase
-//    + new statin requiring monitoring). 99214 is the CORRECT, fully-supported
-//    E/M level — the mirror image of case_upcoding_001 (where 99214 was billed
-//    with low MDM). The coding expert predicts the same codes the provider
-//    billed; nothing is unmatched; verdict = clean / no fraud. This shows the
-//    system's false-positive resistance.
-//    Codes verified: I10, E11.9, E78.5 (CDC/CMS ICD-10-CM); 99214 = 3.87
-//    non-fac RVU × $32.3465 = $125.18 (CMS PFS RVU25A). MDM per the 2021 E/M
-//    revisions (Federal Register doc 2020-26815 + AMA 2021 E/M).
+// 8. case_clean_014 — clean claim (no fraud), the contrast/clean case.
+//    This case stress-tests BOTH fraud detectors at once and clears BOTH:
+//    (a) E/M upcoding — 99214 is GENUINELY justified: 4 active problems incl. a
+//        new acute one (R07.9 chest pain), prescription management, test
+//        ordering (ECG, troponin, spirometry), and a cardiology referral =
+//        moderate MDM. Contrast case_upcoding_001 (99214 with only low MDM).
+//        The coding expert codes 99214 and it MATCHES the bill.
+//    (b) Unbundling — the ECG is billed as the single COMPLETE 93000 (NOT split
+//        into 93005/93010), and spirometry as the single 94060 (NOT 94010 +
+//        94060, which double-bills the baseline already included per NCCI).
+//        Contrast case_unbundling_003, where those pairs ARE split. The expert
+//        does not split them here — both procedures are billed correctly.
+//    The note explicitly documents before-and-after spirometry ("no
+//    reversibility post-bronchodilator") so 94060 alone is the single correct
+//    code. The bill matches the truth (billedCodes == correctCodes); the coding
+//    expert predicts the same codes; nothing is unmatched; verdict = clean.
+//    Codes verified: R07.9, I10, E78.5, J45.20 (ICD-10-CM); 93000 ECG, 94060
+//    bronchodilator responsiveness, 99214 E/M (CPT, CMS PFS RVU25A).
+//    99214 = 3.87 non-facility RVU × $32.3465 = $125.18 (CMS PFS RVU25A).
 // ---------------------------------------------------------------------------
-
-const CLEAN_99214_FEE = 125.18; // CMS PFS RVU25A: 99214 = 3.87 non-fac RVU × $32.3465
 
 const CLEAN_014: TourCase = {
   caseId: "case_clean_014",
@@ -1298,54 +1300,66 @@ const CLEAN_014: TourCase = {
   // demo: true intentionally NOT set — this is the contrast/clean case, not one
   // of the 4 presentation fraud demos.
   teaser:
-    "A diabetes follow-up billed at 99214 — and the note actually supports it. Moderate medical decision making, outside-lab review, a med change: a legitimate claim the system clears.",
+    "Chest-tightness workup billed 99214 + 93000 + 94060 — and the note supports every code. Moderate MDM, an ECG, before-and-after spirometry done right. A legitimate claim the system clears.",
   noteText:
-    "CC: Diabetes follow-up.\n\nHistory: 66yo male, established patient, here for diabetes management. Reports checking home glucose 2x daily, fasting readings 130s-150s, occasional 180s after meals. Adherent to metformin 1000 mg BID. Denies polyuria, polydipsia, blurry vision, or neuropathic symptoms. Reports occasional leg cramps. No chest pain, dyspnea, or palpitations.\n\nHome glucose logs reviewed: fasting glucose 138 mg/dL average over the past 2 weeks. Patient brought results from an outside lab drawn 1 week ago: HbA1c 8.1% (up from 7.2% six months ago), LDL 112, creatinine 0.9, eGFR >60, normal urinalysis with no proteinuria.\n\nPast medical history: Type 2 diabetes mellitus, essential hypertension, hyperlipidemia.\n\nMedications: metformin 1000 mg BID, lisinopril 10 mg daily, atorvastatin 20 mg nightly. Reports no side effects from current medications.\n\nExam: BP 128/76, HR 72, BMI 28.2. General: well appearing. Neurologic: monofilament testing intact bilaterally, no focal deficits. Foot exam: intact skin, palpable pedal pulses, no ulcerations.\n\nAssessment and Plan:\n1. Type 2 diabetes mellitus - A1c has risen from 7.2% to 8.1% despite adherence to metformin 1000 mg BID. Will increase metformin to 1500 mg BID with meals and recheck A1c in 3 months. Reinforced dietary counseling and home glucose monitoring.\n2. Essential hypertension - Well controlled on lisinopril 10 mg daily. Continue current regimen. Recheck BP in 3 months.\n3. Hyperlipidemia - LDL 112, above goal for a diabetic patient (<100). Will increase atorvastatin to 40 mg nightly. Discussed statin side effects to monitor (muscle aches) and advised to report any symptoms. Will recheck lipid panel in 3 months.\n4. Preventive care - Diabetic foot exam intact. Reinforced annual eye exam and daily foot inspection.",
+    "CC: Chest tightness and shortness of breath for the past 3 days.\n\nHPI: 53yo female with history of hypertension and hyperlipidemia presents with substernal chest tightness that started 3 days ago. The tightness is non-radiating, worsens with exertion, relieved by rest. Denies nausea, vomiting, diaphoresis, or palpitations. Has been using albuterol inhaler without relief. No recent illness or fever. No recent travel. No leg swelling or pain.\n\nPMH: Hypertension (dx 2018, controlled on lisinopril). Hyperlipidemia (dx 2019, on atorvastatin). Asthma, mild intermittent (dx 2015).\n\nMeds: Lisinopril 10mg daily, Atorvastatin 20mg daily, Albuterol inhaler PRN.\n\nAllergies: NKDA.\n\nSocial: Former smoker, quit 5 years ago, 10 pack-year history. No alcohol, no illicit drugs.\n\nROS: Constitutional: No fever, no weight loss. CV: Positive for chest tightness. No palpitations, no orthopnea, no PND. Respiratory: Positive for mild dyspnea on exertion. No cough, no hemoptysis. GI: No nausea, no vomiting. MSK: No joint pain.\n\nPhysical Exam: Vitals BP 138/86, HR 82, RR 18, Temp 98.6F, SpO2 97% on room air, BMI 27.4. General: well-appearing, no acute distress, alert and oriented x3. CV: Regular rate and rhythm, no murmurs/rubs/gallops, no JVD, no lower extremity edema. Pulmonary: Clear to auscultation bilaterally, no wheezes/rales/rhonchi, no accessory muscle use. Skin: warm, dry, well-perfused, no rashes. Extremities: No calf tenderness, no swelling, no Homans sign, pulses 2+ bilaterally.\n\nAssessment & Plan:\n1. Atypical chest pain, rule out cardiac etiology — exertional chest discomfort with risk factors (HTN, HLD, former smoker); cardiac etiology cannot be excluded. ECG ordered (normal sinus rhythm, no ST changes, no T-wave inversions). Troponin ordered (pending). Referred to cardiology for stress test. Advised ED if symptoms worsen or occur at rest.\n2. Hypertension, well-controlled — continue lisinopril 10mg daily. BP 138/86. Recheck in 3 months.\n3. Hyperlipidemia, well-controlled — continue atorvastatin 20mg daily. Fasting lipid panel at next visit.\n4. Asthma, mild intermittent — spirometry performed: FEV1 2.8L (88% predicted), FEV1/FVC 0.82, no reversibility post-bronchodilator. Albuterol inhaler adequate for symptom relief. Continue PRN use.\n\nProcedures performed this visit: ECG 12-lead (normal sinus rhythm, rate 82, no acute ischemic changes); spirometry with bronchodilator response testing (pre- and post-bronchodilator measurements).",
   correctCodes: [
+    { code: "R07.9", description: "Chest pain, unspecified", fraudulent: false },
     { code: "I10", description: "Essential (primary) hypertension", fraudulent: false },
-    { code: "E11.9", description: "Type 2 diabetes mellitus without complications", fraudulent: false },
     { code: "E78.5", description: "Hyperlipidemia, unspecified", fraudulent: false },
-    { code: "99214", description: "Office visit, established patient, moderate complexity", fraudulent: false },
+    { code: "J45.20", description: "Mild intermittent asthma, uncomplicated", fraudulent: false },
+    { code: "99214", description: "Established patient office visit, moderate MDM", fraudulent: false },
+    { code: "93000", description: "Electrocardiogram, complete (with interpretation and report)", fraudulent: false },
+    { code: "94060", description: "Bronchodilator responsiveness test (spirometry pre- and post-bronchodilator)", fraudulent: false },
   ],
   // The bill MATCHES the truth — identical codes. No fraudulent lines.
+  // The ECG is the single complete 93000 (NOT split 93005/93010 — that is the
+  // unbundling fraud in case_unbundling_003; here it is done correctly). The
+  // spirometry is the single 94060 (NOT 94010 + 94060 — per NCCI 94010 is a
+  // component of 94060; billing both is a double-bill; the note's before-and-
+  // after testing means 94060 alone is correct). Modifier -25 on 99214 marks
+  // a significant separately identifiable E/M same day as the procedures.
   billedCodes: [
+    { code: "R07.9", description: "Chest pain, unspecified", fraudulent: false },
     { code: "I10", description: "Essential (primary) hypertension", fraudulent: false },
-    { code: "E11.9", description: "Type 2 diabetes mellitus without complications", fraudulent: false },
     { code: "E78.5", description: "Hyperlipidemia, unspecified", fraudulent: false },
-    { code: "99214", description: "Office visit, established patient, moderate complexity", fraudulent: false },
+    { code: "J45.20", description: "Mild intermittent asthma, uncomplicated", fraudulent: false },
+    { code: "99214", description: "Established patient office visit, moderate MDM", fraudulent: false },
+    { code: "93000", description: "Electrocardiogram, complete (with interpretation and report)", fraudulent: false },
+    { code: "94060", description: "Bronchodilator responsiveness test (spirometry pre- and post-bronchodilator)", fraudulent: false },
   ],
   fraudCode: "99214",
-  fraudConfidence: 0.05, // low fraud confidence = high confidence the claim is CLEAN
-  fraudGrounding: 0.95, // 99214 is well grounded in the note (moderate MDM)
+  fraudConfidence: 0.08, // low fraud confidence = high confidence the claim is CLEAN
+  fraudGrounding: 0.95, // all codes well grounded in the note
   missingEvidenceSpans: [
-    "HbA1c 8.1% (up from 7.2% six months ago)...",
-    "Will increase metformin to 1500 mg BID with meals and recheck A1c in 3 months.",
-    "Will increase atorvastatin to 40 mg nightly. Discussed statin side effects to monitor...",
-    "Home glucose logs reviewed: fasting glucose 138 mg/dL average over the past 2 weeks.",
+    "exertional chest discomfort with risk factors (HTN, HLD, former smoker); cardiac etiology cannot be excluded. ECG ordered... Troponin ordered (pending). Referred to cardiology for stress test.",
+    "spirometry performed: FEV1 2.8L (88% predicted), FEV1/FVC 0.82, no reversibility post-bronchodilator.",
+    "Procedures performed this visit: ECG 12-lead... spirometry with bronchodilator response testing (pre- and post-bronchodilator measurements).",
+    "4 active problems: R07.9 acute new + I10/E78.5/J45.20 chronic; prescription management, test ordering, cardiology referral.",
   ],
   proofHeadline:
-    "Every billed code is grounded in the note. This is what legitimate, well-documented moderate MDM looks like.",
+    "Every billed code is grounded in the note — and the procedures are billed the right way. This is what legitimate coding looks like.",
   proofBody:
-    "99214 (established patient, moderate MDM) is fully supported. The note documents moderate complexity across all 3 MDM elements: (1) multiple chronic conditions with progression — diabetes A1c rose from 7.2% to 8.1% requiring a medication change; (2) moderate data — review of an outside lab A1c and lipid panel plus home glucose logs; (3) moderate risk — prescription drug management requiring monitoring (metformin increased, new higher-dose statin). The diagnosis codes (I10, E11.9, E78.5) are each assessed and managed. The coding expert predicts the same four codes the provider billed — nothing is unmatched.",
+    "99214 (established patient, moderate MDM) is fully supported: 4 active problems including a new acute one (R07.9 chest pain), prescription management, test ordering (ECG, troponin, spirometry), and a cardiology referral. The ECG is billed as the single complete 93000 (not split into 93005/93010), and spirometry as the single 94060 (not 94010 + 94060 — the baseline is already included per NCCI). The note documents before-and-after spirometry, so 94060 alone is correct. The diagnosis codes (R07.9, I10, E78.5, J45.20) are each assessed. The coding expert predicts the same codes the provider billed — nothing is unmatched.",
   steps: baseSteps({
     intro: {
       title: "The case",
-      subtitle: "A diabetes follow-up billed at 99214 — and the note actually supports it.",
+      subtitle: "A chest-tightness workup billed 99214 + 93000 + 94060 — and the note supports every code.",
       duration: 2600,
     },
     predicted: {
       title: "What our coding expert predicted",
-      subtitle: "The expert predicts the same four codes the provider billed — a perfect match.",
+      subtitle: "The expert predicts the same codes the provider billed — a perfect match.",
       duration: 4200,
     },
     retrace: {
       title: "The retrace agent",
-      subtitle: "Every code is grounded: moderate MDM, outside-lab review, a medication change. No findings.",
+      subtitle: "Every code is grounded: moderate MDM, an ECG, before-and-after spirometry done right. No findings.",
       duration: 5600,
     },
     impact: {
       title: "Why this is legitimate",
-      subtitle: "99214 is the correct level for documented moderate decision making — a fair payment, not fraud.",
+      subtitle: "99214 + 93000 + 94060 are the correct, supported codes — a fair payment, not fraud.",
       duration: 5600,
     },
     verdict: {
@@ -1355,8 +1369,8 @@ const CLEAN_014: TourCase = {
     },
   }),
   introFacts: [
-    { icon: Stethoscope, label: "Visit type", value: "Diabetes follow-up (established)" },
-    { icon: HeartPulse, label: "Patient", value: "66yo male, T2DM + HTN + hyperlipidemia" },
+    { icon: Stethoscope, label: "Visit type", value: "Chest-tightness workup (established)" },
+    { icon: HeartPulse, label: "Patient", value: "53yo female, HTN + HLD + asthma" },
     { icon: FileText, label: "Payer model", value: "Fee-for-service — paid per code submitted" },
   ],
   introMechanism: [
@@ -1372,74 +1386,87 @@ const CLEAN_014: TourCase = {
     {
       body: (
         <>
-          This is the mirror image of an upcoding case: a diabetes follow-up billed at{" "}
-          <span className="font-mono">99214</span> where the note <span className="font-medium">actually</span>{" "}
-          documents moderate medical decision making. The coding expert agrees with the bill.{" "}
+          This case stress-tests <span className="font-medium">both</span> detectors at once and clears
+          both. The E/M level (<span className="font-mono">99214</span>) is genuinely justified — a new
+          acute problem, prescription management, tests ordered, and a referral. And the procedures are
+          billed correctly — the ECG as one complete{" "}
+          <span className="font-mono">93000</span> and spirometry as one{" "}
+          <span className="font-mono">94060</span>, not split apart.{" "}
           <span className="font-medium">When the documentation supports the code, there is no fraud.</span>
         </>
       ),
     },
   ],
-  mismatchTitle: "No mismatch: 99214 is supported",
-  mismatchSubtitle: "Moderate MDM is documented — the expert predicts the same code the provider billed.",
-  mismatchTruthValue: "99214 (correct)",
-  mismatchTruthCaption: "Moderate MDM: med change + outside-lab review + Rx management",
+  mismatchTitle: "No mismatch: all codes supported",
+  mismatchSubtitle: "99214 + 93000 + 94060 are all grounded — the expert predicts the same codes the provider billed.",
+  mismatchTruthValue: "All correct",
+  mismatchTruthCaption: "99214 moderate MDM · 93000 complete ECG · 94060 single spirometry",
   impactTitle: "Why this is legitimate",
   impactSubtitle:
-    "99214 is the correct level for documented moderate decision making — a fair, supported payment.",
+    "99214 + 93000 + 94060 are the correct, supported codes — a fair, documented payment.",
   impactNodes: [
     {
       icon: CheckCircle2,
       label: "99214 supported",
-      sub: "moderate MDM, fully documented",
+      sub: "moderate MDM: 4 problems, Rx, tests, referral",
+      color: "var(--risk-low)",
+      soft: "var(--risk-low-soft)",
+    },
+    {
+      icon: CheckCircle2,
+      label: "93000 not split",
+      sub: "complete global ECG — not 93005 + 93010",
+      color: "var(--risk-low)",
+      soft: "var(--risk-low-soft)",
+    },
+    {
+      icon: CheckCircle2,
+      label: "94060 not doubled",
+      sub: "baseline included — not 94010 + 94060",
       color: "var(--risk-low)",
       soft: "var(--risk-low-soft)",
     },
     {
       icon: FileText,
       label: "All dx grounded",
-      sub: "I10, E11.9, E78.5 each assessed",
-      color: "var(--risk-low)",
-      soft: "var(--risk-low-soft)",
-    },
-    {
-      icon: DollarSign,
-      label: "Legitimate payment",
-      sub: `${formatUSD(CLEAN_99214_FEE)} for a real, documented visit`,
+      sub: "R07.9, I10, E78.5, J45.20 each assessed",
       color: "var(--risk-low)",
       soft: "var(--risk-low-soft)",
     },
   ],
   impactStats: [
-    { label: "Billed codes supported", value: "4 / 4" },
+    { label: "Billed codes supported", value: "7 / 7" },
     { label: "Expert agreement", value: "100%" },
-    { label: "99214 Medicare payment", value: formatUSD(CLEAN_99214_FEE) },
+    { label: "Legitimate payment", value: "No inflated impact" },
   ],
   impactInsight: (
     <>
-      <span className="font-semibold">The key insight:</span> the note documents moderate medical decision
-      making across all three elements — a rising A1c with a{" "}
-      <span className="font-medium">medication change</span>, review of an{" "}
-      <span className="font-medium">outside-lab A1c and lipid panel</span>, and{" "}
-      <span className="font-medium">prescription drug management</span> (metformin increased, new higher-dose
-      statin). That is exactly what <span className="font-mono">99214</span> requires. The coding expert
-      predicts the same four codes the provider billed. <span className="font-medium">Supported codes are not fraud.</span>
+      <span className="font-semibold">The key insight:</span> the note documents{" "}
+      <span className="font-medium">moderate medical decision making</span> — 4 active problems including a
+      new acute one (chest pain), prescription management, test ordering (ECG, troponin, spirometry), and a
+      cardiology referral. That is what <span className="font-mono">99214</span> requires. The ECG is billed
+      as the complete <span className="font-mono">93000</span> and spirometry as the single{" "}
+      <span className="font-mono">94060</span> (the baseline is already included per NCCI). Both are done
+      correctly — contrast the upcoding and unbundling cases. The coding expert predicts the same codes the
+      provider billed. <span className="font-medium">Supported codes are not fraud.</span>
     </>
   ),
   verdictFacts: [
     { icon: FileText, label: "Classification", value: "Clean Claim" },
     { icon: CheckCircle2, label: "Verdict", value: "No Fraud" },
-    { icon: ScanSearch, label: "Codes supported", value: "4 / 4" },
-    { icon: DollarSign, label: "Legitimate payment", value: formatUSD(CLEAN_99214_FEE) },
+    { icon: ScanSearch, label: "Codes supported", value: "7 / 7" },
+    { icon: DollarSign, label: "Legitimate payment", value: "No inflated impact" },
   ],
   verdictConclusion: (
     <>
       <span className="font-semibold">All billed codes are fully supported by the note.</span> The encounter
-      documents moderate medical decision making — a rising A1c with a metformin dose increase, review of an
-      outside-lab A1c and lipid panel, and prescription drug management with a new higher-dose statin.{" "}
-      <span className="font-mono">99214</span> is the correct E/M level, and the diagnosis codes (I10, E11.9,
-      E78.5) are each assessed and managed. The coding expert predicts the same codes the provider billed.
-      This is a clean claim — a legitimate payment for a real, well-documented visit.
+      documents moderate medical decision making — 4 active problems including a new acute one, prescription
+      management, test ordering, and a cardiology referral — so <span className="font-mono">99214</span> is the
+      correct E/M level. The ECG is billed as the complete <span className="font-mono">93000</span> (not split
+      into 93005/93010) and spirometry as the single <span className="font-mono">94060</span> (not 94010 +
+      94060). The diagnosis codes (R07.9, I10, E78.5, J45.20) are each assessed. The coding expert predicts the
+      same codes the provider billed. This is a clean claim — a legitimate payment for a real,
+      well-documented visit.
     </>
   ),
   accentColor: "var(--risk-low)",

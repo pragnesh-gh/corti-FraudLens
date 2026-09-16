@@ -800,6 +800,15 @@ function normalizePrecomputed(data: Record<string, unknown>): CaseResult {
   const intent: "fraud" | "error" = verdict === "error" ? "error" : "fraud";
   const overBilled = analyses.filter((a) => a.match === "extra" || a.match === "mismatch");
   const primaryCode = overBilled[0]?.code ?? "";
+  // For a CLEAN case there are no over-billed codes (overBilled is empty), so the
+  // synthesized finding would otherwise have no `analysis` and the VerdictStep
+  // would fall back to `finding.intent` ("fraud") — showing a red "Likely Fraud"
+  // badge on a clean claim. Give it an analysis carrying verdict "clean" so the
+  // verdict step surfaces a green "Clean" IntentBadge instead. (CodeAnalysis.verdict
+  // allows "clean"; Finding.intent does not, so we set it via the analysis object.)
+  const cleanAnalysis: CodeAnalysis | undefined = verdict === "clean"
+    ? { code: "", description: "", predicted: true, match: "exact", agreeability: 100, grounding: "supported", noteExcerpts: [], verdict: "clean", confidence }
+    : undefined;
   const findings: Finding[] = caseFraudType
     ? [{
         code: primaryCode,
@@ -813,7 +822,7 @@ function normalizePrecomputed(data: Record<string, unknown>): CaseResult {
         evidence_spans: [],
         agent_trace: [],
         intent,
-        analysis: overBilled[0],
+        analysis: cleanAnalysis ?? overBilled[0],
       }]
     : [];
   const trace = [
