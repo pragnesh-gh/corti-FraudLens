@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { getWorklist, getProviders } from "@/lib/data";
 import { formatUSD, formatDate, cn } from "@/lib/utils";
 import { RiskBadge, FraudChip, IntentBadge, Card } from "@/components/ui";
-import { ALL_FRAUD_TYPES } from "@/lib/fraud-meta";
+import { ALL_FRAUD_TYPES, FRAUD_META } from "@/lib/fraud-meta";
 import type { FraudType, Role } from "@/lib/types";
 import { ArrowUpDown, Search, ChevronRight, AlertTriangle, FolderOpen, Activity, ShieldAlert } from "lucide-react";
 import { getFraming } from "@/components/app-shell";
@@ -20,6 +20,8 @@ export default function CaseQueuePage() {
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<FraudType | "all">("all");
   const [sortKey, setSortKey] = useState<SortKey>("risk");
+  // Hovered fraud type for the hero distribution-bar legend (null = none).
+  const [hoveredType, setHoveredType] = useState<FraudType | null>(null);
 
   const framing = getFraming(role);
 
@@ -33,6 +35,16 @@ export default function CaseQueuePage() {
           worklist.filter((w) => w.risk_score > 0).length,
       )
     : 0;
+
+  // Fraud-type distribution segments for the hero bar (skips zero-count types).
+  // Each carries its count + width % so the bar and the legend stay in sync.
+  const distSegments = useMemo(() => {
+    const total = worklist.length || 1;
+    return ALL_FRAUD_TYPES.map((t) => {
+      const n = worklist.filter((w) => w.fraud_types.includes(t)).length;
+      return { type: t, n, pct: (n / total) * 100 };
+    }).filter((s) => s.n > 0);
+  }, [worklist]);
 
   const rows = useMemo(() => {
     let r = worklist;
@@ -110,23 +122,68 @@ export default function CaseQueuePage() {
               <p className="mt-1 text-sm text-[var(--muted)]">Projected across {openCases} open cases</p>
             </div>
           </div>
-          {/* Mini bar of fraud-type distribution */}
-          <div className="flex h-2 w-full overflow-hidden rounded-full bg-[var(--surface-2)]">
-            {ALL_FRAUD_TYPES.map((t) => {
-              const n = worklist.filter((w) => w.fraud_types.includes(t)).length;
-              const total = worklist.length || 1;
-              if (n === 0) return null;
-              return (
-                <span
-                  key={t}
-                  title={`${ALL_FRAUD_TYPES.find((x) => x === t)?.replace("_", " ")}: ${n}`}
-                  style={{
-                    background: `var(--fraud-${t.replace("_", "-")})`,
-                    width: `${(n / total) * 100}%`,
-                  }}
-                />
-              );
-            })}
+          {/* Mini bar of fraud-type distribution — hover a segment to see its tag
+              and count (bidirectional with the legend below). The bar stays h-2
+              visually but sits in a taller hover zone so small segments are easy
+              to target. Both bar + legend use FRAUD_META colors → adapt to theme. */}
+          <div className="relative">
+            <div className="flex items-center py-1.5">
+              <div className="flex h-2 w-full overflow-hidden rounded-full bg-[var(--surface-2)]">
+                {distSegments.map((s) => {
+                  const meta = FRAUD_META[s.type];
+                  const active = hoveredType === s.type;
+                  return (
+                    <span
+                      key={s.type}
+                      onMouseEnter={() => setHoveredType(s.type)}
+                      onMouseLeave={() => setHoveredType(null)}
+                      className={cn(
+                        "h-full cursor-pointer transition-[filter,opacity] duration-150",
+                        hoveredType && !active && "opacity-50",
+                      )}
+                      style={{
+                        background: meta.color,
+                        width: `${s.pct}%`,
+                        filter: active ? "brightness(1.15)" : undefined,
+                        boxShadow: active ? `0 0 0 1px ${meta.color}` : undefined,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Legend — compact, in-flow (no overflow clip from the card).
+                The hovered type (bar OR legend) is highlighted; others dim. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              {distSegments.map((s) => {
+                const meta = FRAUD_META[s.type];
+                const Icon = meta.icon;
+                const active = hoveredType === s.type;
+                return (
+                  <span
+                    key={s.type}
+                    onMouseEnter={() => setHoveredType(s.type)}
+                    onMouseLeave={() => setHoveredType(null)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-all duration-150 cursor-default",
+                      active
+                        ? "bg-[var(--surface)] text-[var(--foreground)]"
+                        : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]",
+                    )}
+                    style={active ? { borderColor: `${meta.color}66` } : undefined}
+                  >
+                    <Icon
+                      className="h-2.5 w-2.5 flex-none"
+                      strokeWidth={2.5}
+                      style={{ color: meta.color }}
+                    />
+                    <span className="whitespace-nowrap">{meta.label}</span>
+                    <span className="tabular-nums text-[var(--muted-2)]">{s.n}</span>
+                  </span>
+                );
+              })}
+            </div>
           </div>
         </Card>
 
