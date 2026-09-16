@@ -52,14 +52,9 @@ const STEP_RENDERERS: Record<string, (tc: TourCase, onReplay: () => void) => Rea
   intro: (tc) => <IntroStep tc={tc} />,
   note: (tc) => <NoteStep tc={tc} />,
   billed: (tc) => <BilledStep tc={tc} />,
-  // Method steps (replacing the old truth-reveal + flag steps): the tour now
-  // shows what our coding expert PREDICTED, then how the retrace agent REASONS
-  // about each over-billed code — sourced from the real precomputed pipeline.
-  predicted: (tc) => <PredictedStep tc={tc} />,
-  // The history-dependent case gets a dedicated retrace step with the
-  // "Pull patient history" mind-change (Common → Wrong). Other cases use the
-  // standard retrace agent reasoning over the precomputed pipeline output.
-  retrace: (tc) => (tc.patientHistory ? <HistoryRetraceStep tc={tc} /> : <RetraceStep tc={tc} />),
+  // `predicted` and `retrace` are rendered explicitly in TourEngine (they take
+  // live-pipeline props: liveConfirmed + liveCodeSet). `retrace` also branches
+  // to HistoryRetraceStep for the patient-history case. See the render block.
   impact: (tc) => <ImpactStep tc={tc} />,
   verdict: (tc, onReplay) => <VerdictStep tc={tc} onReplay={onReplay} />,
 };
@@ -84,6 +79,46 @@ export function TourEngine({ tc }: { tc: TourCase }) {
   const [step, setStep] = useState(0);
   const [playing, setPlaying] = useState(true);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  // Live pipeline: fire the real Corti run in the background on mount. Never
+  // blocks the deterministic step animations; when it lands, "confirmed live"
+  // badges mark the codes the real run predicted + a header status badge.
+  const [liveArmed, setLiveArmed] = useState(false);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveResult, setLiveResult] = useState<CaseResult | null>(null);
+
+  const liveConfirmed: string | false = liveResult?.source === "live" ? "staging-eu" : false;
+  // Codes the live run predicted (dx + procedures) — for "confirmed live" chips.
+  const liveCodeSet = useMemo(() => {
+    if (!liveResult) return new Set<string>();
+    const dx = liveResult.predicted_codes?.dx ?? [];
+    const proc = liveResult.predicted_codes?.procedures ?? [];
+    return new Set<string>([...dx.map((d) => d.code), ...proc.map((p) => p.code)]);
+  }, [liveResult]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/run-pipeline")
+      .then((r) => r.json())
+      .then((d) => !cancelled && setLiveArmed(Boolean(d.live)))
+      .catch(() => !cancelled && setLiveArmed(false));
+    setLiveLoading(true);
+    fetch("/api/run-pipeline", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ caseId: tc.caseId }),
+    })
+      .then((r) => r.json())
+      .then((d: CaseResult) => {
+        if (cancelled) return;
+        if (d && !((d as { error?: string }).error)) setLiveResult(d);
+      })
+      .catch(() => {})
+      .finally(() => !cancelled && setLiveLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [tc.caseId]);
 
   const clearTimers = useCallback(() => {
     timers.current.forEach(clearTimeout);
@@ -137,7 +172,13 @@ export function TourEngine({ tc }: { tc: TourCase }) {
 
   return (
     <div className="space-y-4">
-      <TourHeader tc={tc} step={step} />
+      <TourHeader
+        tc={tc}
+        step={step}
+        liveConfirmed={liveConfirmed}
+        liveLoading={liveLoading}
+        liveArmed={liveArmed}
+      />
       <TourControls
         steps={steps}
         step={step}
@@ -150,9 +191,21 @@ export function TourEngine({ tc }: { tc: TourCase }) {
         onTogglePlay={togglePlay}
       />
 
-      {/* Active step content — keyed so the tour-step-in animation re-runs. */}
+      {/* Active step content — keyed so the tour-step-in animation re-runs.
+          Steps that surface "confirmed live" badges (predicted, retrace) get
+          the live code set + region; the rest use the shared renderer. */}
       <div key={step} className="tour-step-in">
-        {STEP_RENDERERS[current.id]?.(tc, replay) ?? null}
+        {current.id === "predicted" ? (
+          <PredictedStep tc={tc} liveConfirmed={liveConfirmed} liveCodeSet={liveCodeSet} />
+        ) : current.id === "retrace" ? (
+          tc.patientHistory ? (
+            <HistoryRetraceStep tc={tc} />
+          ) : (
+            <RetraceStep tc={tc} liveConfirmed={liveConfirmed} liveCodeSet={liveCodeSet} />
+          )
+        ) : (
+          (STEP_RENDERERS[current.id] ?? null)?.(tc, replay) ?? null
+        )}
       </div>
     </div>
   );
@@ -162,7 +215,19 @@ export function TourEngine({ tc }: { tc: TourCase }) {
 // Header
 // ---------------------------------------------------------------------------
 
-function TourHeader({ tc, step }: { tc: TourCase; step: number }) {
+function TourHeader({
+  tc,
+  step,
+  liveConfirmed,
+  liveLoading,
+  liveArmed,
+}: {
+  tc: TourCase;
+  step: number;
+  liveConfirmed: string | false;
+  liveLoading: boolean;
+  liveArmed: boolean;
+}) {
   const current = tc.steps[step];
   const BrainIcon = tc.billingModel === "risk_adjustment" ? BrainCircuit : Receipt;
   return (
@@ -184,6 +249,33 @@ function TourHeader({ tc, step }: { tc: TourCase; step: number }) {
           className="inline-flex items-center gap-1 rounded-md border border-[var(--accent)]/20 bg-[var(--accent-soft)] px-2 py-0.5 text-xs font-medium text-[var(--accent)]"
         >
           <BrainIcon className="h-3 w-3" /> {tc.billingModelLabel}
+        </span>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium",
+            liveConfirmed
+              ? "border-[var(--risk-low)]/30 bg-[var(--risk-low-soft)] text-[var(--risk-low)]"
+              : liveLoading
+                ? "border-[var(--accent)]/30 bg-[var(--accent-soft)] text-[var(--accent)]"
+                : "border-[var(--border)] bg-[var(--surface-2)] text-[var(--muted)]",
+          )}
+          title={
+            liveConfirmed
+              ? "Real Corti pipeline confirmed this run"
+              : liveLoading
+                ? "Real pipeline running in the background"
+                : liveArmed
+                  ? "Live pipeline armed — fires on entry"
+                  : "Precomputed from a real pipeline run"
+          }
+        >
+          <span
+            className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              liveConfirmed ? "bg-[var(--risk-low)]" : liveLoading ? "bg-[var(--accent)] animate-pulse-soft" : "bg-[var(--muted-2)]",
+            )}
+          />
+          {liveConfirmed ? `Live · ${liveConfirmed}` : liveLoading ? "Running…" : liveArmed ? "Armed" : "Replay"}
         </span>
       </div>
     </div>
@@ -489,7 +581,15 @@ function BilledStep({ tc }: { tc: TourCase }) {
 // Step 4 — Predicted: what our coding expert predicted (set-intersection compare)
 // ---------------------------------------------------------------------------
 
-function PredictedStep({ tc }: { tc: TourCase }) {
+function PredictedStep({
+  tc,
+  liveConfirmed,
+  liveCodeSet,
+}: {
+  tc: TourCase;
+  liveConfirmed: string | false;
+  liveCodeSet: Set<string>;
+}) {
   const result = useDetectorResult(tc.caseId);
   const [revealed, setRevealed] = useState(0);
 
@@ -575,6 +675,11 @@ function PredictedStep({ tc }: { tc: TourCase }) {
                 index={i}
                 matched
               />
+              {liveConfirmed && liveCodeSet.has(a.code) && (
+                <div className="mb-1 ml-1 text-[10px] font-semibold text-[var(--risk-low)]">
+                  <Check className="mr-0.5 inline h-2.5 w-2.5" /> confirmed live · {liveConfirmed}
+                </div>
+              )}
             </div>
           ))}
           {underBilled.length > 0 && (
@@ -650,7 +755,15 @@ const GROUNDING_LABEL: Record<CodeAnalysis["grounding"], { label: string; tone: 
   contradicted: { label: "Contradicted", tone: "high" },
 };
 
-function RetraceStep({ tc }: { tc: TourCase }) {
+function RetraceStep({
+  tc,
+  liveConfirmed,
+  liveCodeSet,
+}: {
+  tc: TourCase;
+  liveConfirmed: string | false;
+  liveCodeSet: Set<string>;
+}) {
   const result = useDetectorResult(tc.caseId);
   const analyses = result?.code_analyses ?? [];
   const { overBilled } = useMemo(() => bucketAnalyses(analyses), [analyses]);
@@ -703,6 +816,11 @@ function RetraceStep({ tc }: { tc: TourCase }) {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-base font-bold text-[var(--foreground)]">{a.code}</span>
+                    {liveConfirmed && !liveCodeSet.has(a.code) && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--risk-low-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--risk-low)]">
+                        <Check className="h-2.5 w-2.5" /> confirmed live · {liveConfirmed}
+                      </span>
+                    )}
                     <span className="text-xs text-[var(--muted)]">{a.description}</span>
                   </div>
                   <div className="flex items-center gap-2">
