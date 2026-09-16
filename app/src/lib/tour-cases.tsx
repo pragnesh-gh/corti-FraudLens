@@ -202,6 +202,10 @@ const PADDING_002: TourCase = {
       <span className="font-medium">0.127</span> (V28 HCC 329) — worth about{" "}
       <span className="font-medium">{formatUSD(HCC_N18_PER_YEAR)}/yr</span> in added capitated payment
       at the CMS 2025 base. <span className="font-medium">The diagnosis is the money.</span>
+      <span className="mt-2 block text-[11px] text-[var(--muted-2)]">
+        Impact = HCC coeff × CMS 2025 USPCC ($13,570/yr) ÷ V28 norm (1.045). Coeff from CMS-HCC model
+        software; base rate from the CY2025 Rate Announcement.
+      </span>
     </>
   ),
   verdictFacts: [
@@ -233,9 +237,10 @@ const PADDING_002: TourCase = {
 //    than documented — not as a risk-score or direct E/M-level uplift.
 // ---------------------------------------------------------------------------
 
-const PER_CLAIM_UPCODE = 95; // approximate dx-creep reimbursement effect per claim
-const SIMILAR_UPCODES = 45;
-const UPCODING_IMPACT = 4275; // PER_CLAIM_UPCODE × SIMILAR_UPCODES
+// CMS PFS RVU25A: 99214 ($125.18) − 99213 ($88.95) = $36.23; 2025 non-fac CF $32.3465
+const PER_CLAIM_UPCODE = 36.23; // 99214−99213 Medicare overpayment per claim
+const SIMILAR_UPCODES = 45; // illustrative frequency (not audited)
+const UPCODING_IMPACT = 36.23 * 45; // = $1,630
 
 const UPCODING_001: TourCase = {
   caseId: "case_upcoding_001",
@@ -391,9 +396,10 @@ const UPCODING_001: TourCase = {
 //    bundled technical component).
 // ---------------------------------------------------------------------------
 
-const PER_CLAIM_UNBUNDLE = 60;
-const SIMILAR_UNBUNDLES = 45;
-const UNBUNDLING_IMPACT = 10125;
+// CMS PFS RVU25A: 93005 technical component = $6.15 (already bundled in 93000 $13.91); CF $32.3465
+const PER_CLAIM_UNBUNDLE = 6.15; // double-billed 93005 Medicare payment per claim
+const SIMILAR_UNBUNDLES = 45; // illustrative frequency (not audited)
+const UNBUNDLING_IMPACT = 6.15 * 45; // = $277
 
 const UNBUNDLING_003: TourCase = {
   caseId: "case_unbundling_003",
@@ -553,9 +559,10 @@ const UNBUNDLING_003: TourCase = {
 //    Truth = no ECG at all.
 // ---------------------------------------------------------------------------
 
-const PER_CLAIM_PHANTOM = 110;
-const SIMILAR_PHANTOMS = 45;
-const PHANTOM_IMPACT = 10125;
+// CMS PFS RVU25A: 93000 complete ECG = $13.91 (never-rendered service); CF $32.3465
+const PER_CLAIM_PHANTOM = 13.91; // full 93000 fee collected for nothing
+const SIMILAR_PHANTOMS = 45; // illustrative frequency (not audited)
+const PHANTOM_IMPACT = 13.91 * 45; // = $626
 
 const PHANTOM_004: TourCase = {
   caseId: "case_phantom_004",
@@ -714,9 +721,10 @@ const PHANTOM_004: TourCase = {
 //    "cloning" label. The tour shows this honestly.
 // ---------------------------------------------------------------------------
 
-const PER_CLAIM_CLONE = 80; // 99214 vs 99213 E/M uplift
-const SIMILAR_CLONES = 30;
-const CLONE_IMPACT = 6000;
+// CMS PFS RVU25A: 99214 ($125.18) − 99213 ($88.95) = $36.23; CF $32.3465
+const PER_CLAIM_CLONE = 36.23; // 99214−99213 E/M uplift per cloned claim
+const SIMILAR_CLONES = 30; // illustrative frequency (not audited)
+const CLONE_IMPACT = 36.23 * 30; // = $1,087
 
 const CLONING_005: TourCase = {
   caseId: "case_cloning_005",
@@ -884,9 +892,10 @@ const CLONING_005: TourCase = {
 //    reveal (Common → Wrong) is the point.
 // ---------------------------------------------------------------------------
 
-const HISTORY_DEBRIDE_FEE = 120; // approximate CPT 97597 fee
-const SIMILAR_HISTORY_CASES = 18;
-const HISTORY_IMPACT = 4320; // HISTORY_DEBRIDE_FEE × SIMILAR_HISTORY_CASES
+// CMS PFS RVU25A: 97597 wound debridement = $96.72 (impossible on absent limb); CF $32.3465
+const HISTORY_DEBRIDE_FEE = 96.72; // CPT 97597 Medicare payment per claim
+const SIMILAR_HISTORY_CASES = 18; // illustrative frequency (not audited)
+const HISTORY_IMPACT = 96.72 * 18; // = $1,741
 
 const HISTORY_012: TourCase = {
   caseId: "case_history_012",
@@ -1233,6 +1242,10 @@ const DEPRESSION_PAD_013: TourCase = {
       <span className="font-medium">0.299</span> to the risk score — about{" "}
       <span className="font-medium">{formatUSD(HCC_F33_PER_YEAR)}/yr</span> in added capitated payment.{" "}
       <span className="font-medium">On the problem list is not the same as supported by the visit.</span>
+      <span className="mt-2 block text-[11px] text-[var(--muted-2)]">
+        Impact = HCC coeff × CMS 2025 USPCC ($13,570/yr) ÷ V28 norm (1.045). Coeff from CMS-HCC model
+        software; base rate from the CY2025 Rate Announcement.
+      </span>
     </>
   ),
   verdictFacts: [
