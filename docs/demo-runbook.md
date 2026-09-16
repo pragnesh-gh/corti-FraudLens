@@ -44,7 +44,7 @@ coding-expert agent:
 
 ```bash
 cd app
-# .env is already in place with the eu-region credentials (gitignored).
+# .env is already in place with the Corti credentials (gitignored).
 echo "FRAUDLENS_LIVE=1" >> .env
 npm run dev
 ```
@@ -60,13 +60,13 @@ node scripts/live-test.mjs
 ```
 
 This does a full end-to-end check: auth → create a coding-expert agent → send a
-clinical note → report the prediction → clean up. **Status as of 2026-09-15:**
-- **dev-weu** — ✅ works end-to-end; the coding expert returns correct codes. **This is the active region** (`CORTI_REGION=dev-weu`).
-- **staging-eu** — ✅ also has credits.
+clinical note → report the prediction → clean up. **Status as of 2026-09-16:**
+- **staging-eu** — ✅ works end-to-end; the coding expert returns correct codes. **This is the active region** (`CORTI_REGION=staging-eu`).
+- **dev-weu** — ✅ also works end-to-end, but its `message:send` is intermittently flaky (404 / "fetch failed"). Reliable as a fallback.
 - **eu** — auth + agent creation work, but message:send is REJECTED ("account balance insufficient"). Avoid until credits are added.
 
 ### Smoke test (always works, no network)
 
 ```bash
-node scripts/smoke.mjs     # 31/31 checks across every route
+node scripts/smoke.mjs     # 37/37 checks across every route
 ```

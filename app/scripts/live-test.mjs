@@ -21,7 +21,7 @@ for (const line of readFileSync(".env", "utf8").split("\n")) {
   if (m && m[1]) process.env[m[1]] = m[2];
 }
 
-const REGION = (process.env.CORTI_REGION || "dev-weu").toLowerCase();
+const REGION = (process.env.CORTI_REGION || "staging-eu").toLowerCase();
 const SUFFIX = REGION === "dev-weu" ? "DEV_WEU" : REGION === "staging-eu" ? "STAGING_EU" : REGION.toUpperCase();
 const BASE = process.env[`AGENT_API_URL_${SUFFIX}`]?.replace(/\/$/, "") || `https://api.${REGION}.corti.app`;
 const AUTH = process.env[`AGENT_API_AUTH_URL_${SUFFIX}`] || `https://auth.${REGION}.corti.app`;
