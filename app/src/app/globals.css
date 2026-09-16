@@ -1,34 +1,77 @@
 @import "tailwindcss";
 
-/* ---- Design tokens: clean clinical aesthetic, light-first ---- */
+/* ============================================================================
+   FraudLens — Luminous Cyber-Glassmorphism design system
+   Dark-first. Canvas: ink-violet void. Accents: radiant fuchsia, solar amber,
+   electric violet, safe emerald. Glass surfaces use backdrop-filter blur.
+   Serious surfaces (legal brief, evidence) render a restrained printable
+   variant via the `.surface-sober` class + the @media print block.
+   Reference: hackathon/DESIGN.md ("Luminous Forensic Intelligence").
+   ========================================================================= */
+
 :root {
-  --background: #f6f8fb; /* soft off-white ground */
-  --surface: #ffffff; /* cards, panels */
-  --surface-2: #f1f5f9; /* subtle alt rows / wells */
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
+  /* ---- Canvas & elevation ---- */
+  --background: #0b081e; /* ink-violet void */
+  --background-2: #130f30; /* surface elevation 1 (panels/shelves) */
+  --surface: #1a153e; /* surface elevation 2 (interactive cards) */
+  --surface-glass: rgba(26, 21, 62, 0.65); /* glass overlay tier */
+  --surface-glass-strong: rgba(32, 25, 78, 0.85); /* floating tier (modals) */
+  --surface-2: rgba(255, 255, 255, 0.03); /* alt rows / wells */
+  --surface-sober: #fbfafe; /* restrained light surface for legal/evidence */
+  --surface-sober-2: #f4f2fb; /* alt row on sober surface */
+  --surface-sober-ink: #1a1a2e; /* ink text on sober surface */
 
-  --foreground: #0f172a; /* slate-900 */
-  --muted: #64748b; /* slate-500 */
-  --muted-2: #94a3b8; /* slate-400 */
+  /* ---- Borders ---- */
+  --border: rgba(255, 255, 255, 0.08); /* ghost boundary */
+  --border-strong: rgba(255, 255, 255, 0.15); /* luminous rim */
+  --border-sober: #e6e2f0;
 
-  --accent: #2563eb; /* blue-600 — interactive accent */
-  --accent-soft: #eff6ff; /* blue-50 */
+  /* ---- Text ---- */
+  --foreground: #e5defe; /* primary text */
+  --muted: rgba(229, 222, 254, 0.65); /* secondary text */
+  --muted-2: rgba(229, 222, 254, 0.4); /* tertiary / placeholder */
 
-  /* Semantic risk colors */
-  --risk-high: #dc2626; /* red-600 */
-  --risk-high-soft: #fef2f2;
-  --risk-med: #d97706; /* amber-600 */
-  --risk-med-soft: #fffbeb;
-  --risk-low: #16a34a; /* green-600 */
-  --risk-low-soft: #f0fdf4;
+  /* ---- Accent: radiant fuchsia (primary) ---- */
+  --accent: #ff2a8d;
+  --accent-soft: rgba(255, 42, 141, 0.15);
+  --accent-soft-2: rgba(255, 42, 141, 0.08);
+  --accent-tint: #ffb1c7; /* on-accent readable tint */
 
-  /* Per-fraud-type accents */
-  --fraud-upcoding: #dc2626; /* red */
-  --fraud-unbundling: #ea580c; /* orange */
-  --fraud-phantom: #b91c1c; /* deep red */
-  --fraud-dx-inflation: #d97706; /* amber */
-  --fraud-cloning: #7c3aed; /* purple */
+  /* ---- Semantic risk colors (neon) ---- */
+  --risk-high: #ff2a8d; /* fuchsia — critical anomaly / fraud */
+  --risk-high-soft: rgba(255, 42, 141, 0.15);
+  --risk-med: #ff8a00; /* solar amber — warning / error */
+  --risk-med-soft: rgba(255, 138, 0, 0.15);
+  --risk-low: #00f5a0; /* safe emerald — compliant / clean */
+  --risk-low-soft: rgba(0, 245, 160, 0.12);
+
+  /* ---- Capability accents (the three Corti capabilities) ---- */
+  --cap-textgen: #7b2cbf; /* electric violet — AI text generation */
+  --cap-coding: #00f5a0; /* emerald — medical coding */
+  --cap-agentic: #ff2a8d; /* fuchsia — agentic framework */
+
+  /* ---- Per-fraud-type accents (reconciled neon DESIGN.md set) ---- */
+  --fraud-upcoding: #ff2a8d; /* radiant fuchsia */
+  --fraud-unbundling: #ff8a00; /* solar amber */
+  --fraud-phantom: #7b2cbf; /* electric violet */
+  --fraud-dx-inflation: #ff8a00; /* amber (severity inflation) */
+  --fraud-cloning: #deb7ff; /* tertiary violet tint */
+
+  /* ---- Glow & shadow ---- */
+  --glow-accent: 0 0 24px rgba(255, 42, 141, 0.25);
+  --glow-accent-hover: 0 0 30px rgba(255, 42, 141, 0.15);
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.37), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 20px rgba(123, 44, 191, 0.2);
+
+  /* ---- Gradients ---- */
+  --grad-1: linear-gradient(135deg, #ff2a8d, #ff8a00);
+  --grad-2: linear-gradient(135deg, #7b2cbf, #ff2a8d);
+  --grad-3: linear-gradient(135deg, #00f5a0, #7b2cbf);
+  --grad-4: linear-gradient(135deg, #ff8a00, #ff2a8d);
+  --grad-hero: linear-gradient(90deg, #ff2a8d 0%, #ff8a00 100%);
+
+  /* ---- Risk outline (critical cards) ---- */
+  --risk-outline: linear-gradient(135deg, rgba(255, 42, 141, 0.5), rgba(255, 138, 0, 0.2) 40%, rgba(255, 255, 255, 0.05) 100%);
 }
 
 @theme inline {
@@ -48,18 +91,32 @@
   --color-risk-med-soft: var(--risk-med-soft);
   --color-risk-low: var(--risk-low);
   --color-risk-low-soft: var(--risk-low-soft);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-jakarta), var(--font-inter), Arial, Helvetica, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --font-display: var(--font-jakarta), Arial, Helvetica, sans-serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-jakarta), var(--font-inter), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* Ambient backdrop: fuchsia top-right + violet bottom-left radial flares */
+  background-image:
+    radial-gradient(circle at top right, rgba(255, 42, 141, 0.12), transparent 50%),
+    radial-gradient(circle at bottom left, rgba(123, 44, 191, 0.18), transparent 60%);
+  background-attachment: fixed;
 }
 
-/* Thin, clinical scrollbars */
+/* Monospace for codes / money / identifiers */
+.font-mono,
+code,
+kbd,
+samp {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+/* Thin neon scrollbars */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
@@ -73,7 +130,35 @@ body {
   border-radius: 9999px;
 }
 
-/* Subtle entrance animation for streaming agent cards / flags */
+/* ---- Glass elevation utilities ---- */
+.glass {
+  background: var(--surface-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-glass);
+}
+.glass-strong {
+  background: var(--surface-glass-strong);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-float);
+}
+
+/* ---- Restrained printable surface (legal brief, evidence tables) ----
+   Renders sober even in dark mode so attorney/MFCU surfaces read as credible.
+   The @media print block below flips the whole app to this look on print. */
+.surface-sober {
+  background: var(--surface-sober);
+  color: var(--surface-sober-ink);
+  border: 1px solid var(--border-sober);
+}
+.surface-sober .text-muted-sober {
+  color: #5b5570;
+}
+
+/* ---- Entrance animations ---- */
 @keyframes fade-rise {
   from {
     opacity: 0;
@@ -101,12 +186,33 @@ body {
   animation: pulse-soft 1.4s ease-in-out infinite;
 }
 
-/* ---- Guided tour animations ---- */
-/* Deterministic, CSS-only motion for the diagnosis-padding tour. No JS libs. */
+/* Neon status dot pulse (used on critical badges) */
+@keyframes neon-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+}
+.neon-dot {
+  animation: neon-pulse 2s infinite;
+}
 
-/* A row of code comparison slides from the left (billed) column over to align
-   beside its truth-column counterpart. Used when the "what was billed" cards
-   slide to meet the "what the note supports" cards. */
+/* Spinner (pipeline running state) */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Guided tour animations (preserved; recolored via tokens) ---- */
 @keyframes tour-slide-over {
   from {
     opacity: 0;
@@ -121,8 +227,6 @@ body {
   animation: tour-slide-over 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* A red "attention" pulse used on the fraudulent N18.3 row + missing-evidence
-   note spans once the comparison lands. Two visible beats then it holds. */
 @keyframes tour-flag-pulse {
   0% {
     box-shadow: 0 0 0 0 var(--risk-high);
@@ -141,14 +245,10 @@ body {
   animation: tour-flag-pulse 1.1s ease-out 2;
 }
 
-/* Severity meter fill: the colored bar width is driven inline by a CSS var
-   (--tour-fill, 0-100). The transition does the "alive" sweep on mount. */
 .tour-meter-fill {
   transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* The billing-impact flow: HCC → risk score → $. Each node pops in, then a
-   connector line "draws" left-to-right via a width transition. */
 @keyframes tour-node-pop {
   from {
     opacity: 0;
@@ -167,8 +267,6 @@ body {
   transform-origin: left center;
 }
 
-/* A soft highlight sweep across a note sentence, used to prove the
-   missing-evidence point (no renal labs / no CKD history). */
 @keyframes tour-highlight-sweep {
   0% {
     background-color: transparent;
@@ -185,7 +283,6 @@ body {
   border-radius: 3px;
 }
 
-/* Step transition: content of the active step rises in. */
 @keyframes tour-step-in {
   from {
     opacity: 0;
@@ -200,10 +297,7 @@ body {
   animation: tour-step-in 0.4s ease-out both;
 }
 
-/* ---- Coding-demo animations ---- */
-
-/* Phase 1: a phrase in the note lights up as the coding expert "reads" it.
-   Underline + soft accent background, then holds. */
+/* ---- Coding-demo animations (recolored) ---- */
 @keyframes cd-phrase-read {
   0% {
     background-color: transparent;
@@ -225,8 +319,6 @@ body {
   border-radius: 3px;
 }
 
-/* Phase 1: a freshly extracted code card pops out of the phrase toward the
-   extracted-codes panel (scale + slight translate, then settle). */
 @keyframes cd-extract-pop {
   0% {
     opacity: 0;
@@ -245,8 +337,6 @@ body {
   animation: cd-extract-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Phase 1: the connector line that draws from the highlighted phrase to the
-   new code card, giving the "phrase becomes a code" feel. */
 @keyframes cd-connector-draw {
   from {
     transform: scaleX(0);
@@ -262,9 +352,6 @@ body {
   animation: cd-connector-draw 0.4s ease-out both;
 }
 
-/* Phase 3: a "scanning" sweep highlight that travels down through the note
-   text while the agent hunts for supporting evidence. Uses a moving
-   linear-gradient background. */
 @keyframes cd-scan-sweep {
   0% {
     background-position: 0% 0;
@@ -286,8 +373,6 @@ body {
   animation: cd-scan-sweep 1.8s ease-in-out both;
 }
 
-/* Phase 3: a contradiction phrase in the note flashes red (the note says the
-   opposite of the billed diagnosis). Two beats then holds soft-red. */
 @keyframes cd-contradiction-flash {
   0%,
   100% {
@@ -304,3 +389,35 @@ body {
   border-radius: 3px;
 }
 
+/* ---- Print stylesheet: flips to sober white for legal brief / evidence ----
+   Any element marked .print-sober (or inside .surface-sober) prints as a clean
+   white legal document. Neon chrome is hidden. */
+@media print {
+  body {
+    background: #ffffff !important;
+    background-image: none !important;
+    color: var(--surface-sober-ink) !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .print-sober,
+  .print-sober * {
+    visibility: visible;
+  }
+  .print-sober {
+    position: absolute;
+    inset: 0;
+    background: #ffffff !important;
+    color: var(--surface-sober-ink) !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  .glass,
+  .glass-strong {
+    backdrop-filter: none !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: 1px solid var(--border-sober) !important;
+  }
+}
