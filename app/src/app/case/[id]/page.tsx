@@ -4,10 +4,11 @@ import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getCase, getCaseResult, getProvider } from "@/lib/data";
 import { formatUSD, formatPct, formatDate, cn } from "@/lib/utils";
-import { Card, CardHeader, RiskBadge, FraudChip, IntentBadge } from "@/components/ui";
+import { Card, CardHeader, RiskBadge, FraudChip, IntentBadge, CodeComparisonTable } from "@/components/ui";
+import type { CodeComparisonRow } from "@/components/ui";
 import { FRAUD_META } from "@/lib/fraud-meta";
-import type { AgentCard, EvidenceSpan, Finding } from "@/lib/types";
-import { ArrowLeft, ChevronRight, Check, Loader2, Circle, Sparkles, DollarSign, FileText, ScanSearch, Gavel, FlaskConical, Receipt } from "lucide-react";
+import type { AgentCard, EvidenceSpan, Finding, CodeAnalysis } from "@/lib/types";
+import { ArrowLeft, ChevronRight, Check, Loader2, Circle, Sparkles, DollarSign, FileText, ScanSearch, Gavel, FlaskConical, Receipt, ShieldCheck, Scale } from "lucide-react";
 
 const AGENT_ICONS: Record<string, typeof FileText> = {
   facts: FileText,
@@ -88,6 +89,43 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   const submittedProc = c.submitted_codes.procedures;
   const predictedProc = result.predicted_codes.procedures;
 
+  // Build comparison-table rows from the per-code analyses (set-intersection +
+  // retrace). Falls back to a positional projection when no analyses exist
+  // (e.g. pure replay without precomputed data).
+  const comparisonRows: CodeComparisonRow[] = useMemo(() => {
+    if (result.code_analyses && result.code_analyses.length > 0) {
+      return result.code_analyses.map((a: CodeAnalysis) => ({
+        code: a.code,
+        description: a.description,
+        match:
+          a.match === "exact"
+            ? "matched"
+            : a.match === "extra"
+              ? "over-billed"
+              : a.match === "missing"
+                ? "under-billed"
+                : "over-billed", // mismatch → treat as over-billed (billed code under scrutiny)
+        agreeability: a.match !== "exact" ? a.agreeability : undefined,
+        evidence: a.match !== "exact" ? a.grounding : undefined,
+      }));
+    }
+    // Fallback: positional projection of submitted vs predicted procedures.
+    return submittedProc.map((sp, i) => {
+      const pp = predictedProc[i];
+      const mismatch = pp && sp.code !== pp.code;
+      return {
+        code: sp.code,
+        description: sp.description,
+        match: mismatch ? "over-billed" : "matched",
+      };
+    });
+  }, [result, submittedProc, predictedProc]);
+
+  // The case-level detector verdict (from the judgement agent, when present).
+  const verdictFinding = result.findings[0];
+  const caseVerdict = verdictFinding?.analysis?.verdict;
+  const caseCategory = verdictFinding?.fraud_type;
+
   return (
     <div className="space-y-4">
       {/* Breadcrumb + header */}
@@ -104,6 +142,25 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
           <IntentBadge
             intent={result.findings.some((f) => f.intent === "fraud") ? "fraud" : result.findings.some((f) => f.intent === "error") ? "error" : "clean"}
           />
+          {typeof result.detected === "boolean" && (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                result.detected
+                  ? "bg-[var(--risk-low-soft)] text-[var(--risk-low)]"
+                  : "bg-[var(--risk-med-soft)] text-[var(--risk-med)]",
+              )}
+              title={result.detected ? "Detector independently arrived at the planted fraud type" : "Fraud detected, but category differs from the planted type"}
+            >
+              <ShieldCheck className="h-3 w-3" />
+              {result.detected ? "Detector matched" : "Fraud caught"}
+            </span>
+          )}
+          {result.source === "live" && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" /> Live
+            </span>
+          )}
         </div>
       </div>
 
@@ -163,48 +220,64 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
         {/* Right: codes + findings */}
         <div className="space-y-4">
-          {/* Submitted vs predicted */}
-          <Card>
-            <CardHeader title="Submitted vs predicted codes" subtitle="What the provider billed vs what the note supports" />
-            <div className="divide-y divide-[var(--border)]">
-              {submittedProc.map((sp, i) => {
-                const pp = predictedProc[i];
-                const mismatch = pp && sp.code !== pp.code;
-                return (
-                  <div
-                    key={i}
+          {/* Detector verdict — case-level judgement from the agentic pipeline */}
+          {verdictFinding && (
+            <Card className="overflow-hidden">
+              <CardHeader
+                title="Detector verdict"
+                subtitle="Agentic judgement — coding expert reasons over the comparison"
+                right={<Gavel className="h-4 w-4 text-[var(--accent)]" />}
+              />
+              <div className="space-y-3 px-5 py-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <FraudChip type={caseCategory ?? "upcoding"} />
+                  <span
                     className={cn(
-                      "grid grid-cols-2 gap-px px-4 py-3 text-sm",
-                      mismatch && "bg-[var(--risk-high-soft)]/40",
+                      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                      caseVerdict === "fraud"
+                        ? "bg-[var(--risk-high-soft)] text-[var(--risk-high)]"
+                        : caseVerdict === "error"
+                          ? "bg-[var(--risk-med-soft)] text-[var(--risk-med)]"
+                          : "bg-[var(--risk-low-soft)] text-[var(--risk-low)]",
                     )}
                   >
-                    <div>
-                      <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">Submitted</div>
-                      <div className="font-mono font-semibold">{sp.code}</div>
-                      <div className="text-xs text-[var(--muted)] line-clamp-2">{sp.description}</div>
-                      {sp.modifiers.length > 0 && (
-                        <div className="mt-1 flex gap-1">
-                          {sp.modifiers.map((m) => (
-                            <span key={m} className="rounded bg-[var(--risk-med-soft)] px-1 py-0.5 text-[10px] font-semibold text-[var(--risk-med)]">{m}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">Predicted</div>
-                      <div className={cn("font-mono font-semibold", mismatch ? "text-[var(--risk-low)]" : "text-[var(--foreground)]")}>
-                        {pp?.code ?? "—"}
-                      </div>
-                      <div className="text-xs text-[var(--muted)] line-clamp-2">{pp?.description}</div>
-                      {mismatch && (
-                        <div className="mt-1 text-[11px] font-medium text-[var(--risk-high)]">
-                          ↓ {formatUSD((EM_charge(sp.code) - EM_charge(pp.code)))} overbilled
-                        </div>
-                      )}
-                    </div>
+                    {caseVerdict === "fraud" ? "Likely fraud" : caseVerdict === "error" ? "Possible error" : "Clean"}
+                  </span>
+                  <span className="ml-auto text-xs text-[var(--muted-2)]">
+                    Confidence <span className="font-semibold text-[var(--foreground)]">{formatPct(verdictFinding.confidence)}</span>
+                  </span>
+                </div>
+                <p className="text-sm leading-relaxed text-[var(--foreground)]">{verdictFinding.rationale}</p>
+                {verdictFinding.analysis && verdictFinding.analysis.noteExcerpts.length > 0 && (
+                  <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">
+                      Grounding — note excerpts cited by the retrace agent
+                    </p>
+                    <ul className="space-y-1.5">
+                      {verdictFinding.analysis.noteExcerpts.slice(0, 4).map((ex, i) => (
+                        <li key={i} className="text-xs italic leading-snug text-[var(--muted)]">
+                          “{ex}”
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                );
-              })}
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* Code analysis — set-intersection comparison + per-code agreeability */}
+          <Card>
+            <CardHeader
+              title="Code analysis"
+              subtitle="What the provider billed vs what our coding expert predicted"
+            />
+            <div className="p-4">
+              <CodeComparisonTable rows={comparisonRows} />
+              <p className="mt-3 text-[11px] leading-snug text-[var(--muted-2)]">
+                <span className="font-semibold text-[var(--risk-high)]">Over-billed</span> codes were not predicted by our expert and were retraced by the agentic framework —
+                the <span className="font-semibold text-[var(--foreground)]">agreeability</span> score rates how defensible each is (high = minor miss, low = likely fraud).
+              </p>
             </div>
           </Card>
 
@@ -236,15 +309,34 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             </Card>
           )}
+
+          {/* Legal / referral brief — first-class output (textgen via Guided Docs) */}
+          {result.legal_brief && (
+            <Card className="surface-sober overflow-hidden">
+              <CardHeader
+                title="Case referral brief"
+                subtitle="Generated by textgen (Guided Docs) from the detector findings — preliminary, not a determination"
+                right={<Scale className="h-4 w-4 text-[var(--accent)]" />}
+              />
+              <div className="print-sober px-5 py-4">
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--foreground)]">{result.legal_brief}</p>
+                <p className="mt-4 border-t border-[var(--border)] pt-3 text-[11px] italic leading-snug text-[var(--muted-2)]">
+                  This AI-generated analysis is a preliminary investigation assessment and does not constitute a legal
+                  conclusion or a determination of fraud. Mere coding discrepancies do not establish a violation.
+                </p>
+                <button
+                  onClick={() => window.print()}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+                >
+                  <FileText className="h-3.5 w-3.5" /> Print / save as PDF
+                </button>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
     </div>
   );
-}
-
-function EM_charge(code: string): number {
-  const table: Record<string, number> = { "99211": 40, "99212": 75, "99213": 115, "99214": 175, "99215": 240 };
-  return table[code] ?? 0;
 }
 
 function AgentCardView({ card, index }: { card: AgentCard; index: number }) {
