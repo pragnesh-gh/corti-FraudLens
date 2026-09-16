@@ -172,7 +172,7 @@ export interface CaseResult {
   agent_trace: AgentCard[]; // case-level agent cards
   /** Per-code analysis from the set-intersection + retrace. */
   code_analyses?: CodeAnalysis[];
-  /** Generated legal/referral brief (Guided Docs textgen), first-class output. */
+  /** Generated legal brief (textgen: deterministic multi-section brief + optional Guided Docs narrative), first-class output. */
   legal_brief?: string;
   /** Live vs replay provenance. */
   source?: "live" | "replay";

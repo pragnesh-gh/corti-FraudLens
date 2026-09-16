@@ -374,7 +374,7 @@ export async function runLivePipeline(client: CortiClient, c: Case, cfg: Pipelin
   let legal_brief: string | undefined;
   try {
     legal_brief = await traced(otTrace, "impact.legal_brief", "general", { fraudType: finding.fraudType },
-      () => generateLegalBrief(client, c, finding, cfg.timeoutMs));
+      () => generateLegalBrief(client, c, finding, analyses, cfg.timeoutMs));
   } catch {
     // brief is best-effort; the case result is still valid without it
   }

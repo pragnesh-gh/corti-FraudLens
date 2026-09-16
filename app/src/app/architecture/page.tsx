@@ -114,11 +114,11 @@ const STAGES: Stage[] = [
   },
   {
     id: "brief",
-    title: "Case referral brief",
-    role: "Draft a 13-section referral document (FCA §3729, qui-tam, hedged disclaimers) — LLM-filled from the verdict via Guided Docs.",
+    title: "Legal brief",
+    role: "Draft a multi-section legal brief (FCA §3729, qui-tam, Escobar materiality, hedged disclaimers) — deterministic skeleton + LLM-filled narrative via Guided Docs.",
     capability: "textgen",
     surface: "POST /v2/documents (Guided Docs, legal sections)",
-    output: "Referral-ready case package",
+    output: "Legal brief (first-class textgen deliverable)",
     icon: Scale,
   },
 ];

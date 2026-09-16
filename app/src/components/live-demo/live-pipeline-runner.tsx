@@ -35,7 +35,7 @@ const PIPELINE_STAGES = [
   { id: "coding", label: "Predict medical codes", icon: Zap },
   { id: "retrace", label: "Retrace unmatched codes", icon: ScanSearch },
   { id: "judgement", label: "Judge fraud vs error", icon: Gavel },
-  { id: "brief", label: "Draft referral brief", icon: Scale },
+  { id: "brief", label: "Draft legal brief", icon: Scale },
 ];
 
 type RunState = "idle" | "running" | "done" | "error";
@@ -313,7 +313,7 @@ function LiveResults({ result }: { result: CaseResult }) {
       {result.legal_brief && (
         <div className="surface-sober glass rounded-xl border border-[var(--border)] p-4">
           <div className="flex items-center gap-1.5 text-sm font-semibold">
-            <Scale className="h-4 w-4 text-[var(--accent)]" /> Case referral brief
+            <Scale className="h-4 w-4 text-[var(--accent)]" /> Legal brief
           </div>
           <div className="print-sober mt-2">
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--foreground)]">{result.legal_brief}</p>
