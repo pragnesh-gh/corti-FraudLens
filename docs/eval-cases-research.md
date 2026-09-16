@@ -213,7 +213,7 @@ The full JSON block follows.
           "flag_reason": "The note documents localized cellulitis with no SIRS/sepsis criteria: normal WBC, normal lactate, afebrile, no tachycardia, no tachypnea, no hypotension, no organ dysfunction, and an explicit assessment of 'No evidence of sepsis.' Adding A41.9 misrepresents a skin infection as sepsis.",
           "fraud_mechanism": "dx_inflation",
           "billing_impact_mechanism": "drg_weight",
-          "billing_impact_note": "Under the CMS MS-DRG system, severe sepsis (DRG 871) carries a much higher weight and base payment than a skin infection / cellulitis admission (DRG 602-603). Coding localized cellulitis as sepsis upcodes the inpatient DRG and inflates the hospital's payment without a sicker patient or more complex care."
+          "billing_impact_note": "Under the CMS MS-DRG system, coding localized cellulitis (cellulitis DRG 603, FY2025 weight 0.88) as sepsis moves the case to Septicemia/Severe Sepsis DRG 871 (FY2025 weight 1.96) - more than doubling the DRG weight and the hospital's base payment - without a sicker patient or more complex care."
         }
       ]
     }
