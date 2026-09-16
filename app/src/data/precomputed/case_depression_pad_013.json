@@ -1,0 +1,121 @@
+{
+  "case_id": "case_depression_pad_013",
+  "fraud_type": "diagnosis_padding",
+  "predicted_codes": {
+    "procedures": ["G0439"],
+    "dx": ["I10", "E78.5", "M85.80", "F33.42"]
+  },
+  "analyses": [
+    {
+      "code": "I10",
+      "description": "Essential (primary) hypertension",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [
+        "Hypertension has been stable on amlodipine 5 mg daily.",
+        "1. Essential hypertension - Well controlled. Continue amlodipine."
+      ],
+      "confidence": 0.96
+    },
+    {
+      "code": "E78.5",
+      "description": "Hyperlipidemia, unspecified",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [
+        "Hyperlipidemia treated with atorvastatin 20 mg nightly.",
+        "2. Hyperlipidemia - Stable. Continue atorvastatin."
+      ],
+      "confidence": 0.95
+    },
+    {
+      "code": "M85.80",
+      "description": "Other specified disorders of bone density and structure",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [
+        "3. Osteopenia - Continue calcium/vitamin D. DEXA next year."
+      ],
+      "confidence": 0.92
+    },
+    {
+      "code": "G0439",
+      "description": "Annual wellness visit, includes a personalized prevention plan of service",
+      "predicted": true,
+      "match": "predicted_only",
+      "agreeability": 0,
+      "grounding": "supported",
+      "noteExcerpts": [
+        "CC: Medicare Annual Wellness Visit and chronic disease follow-up.",
+        "5. Preventive care - Vaccinations reviewed. Mammogram ordered."
+      ],
+      "confidence": 0.9,
+      "rationale": "The encounter is explicitly a Medicare Annual Wellness Visit, which maps to G0439. It was not on the submitted bill."
+    },
+    {
+      "code": "F33.1",
+      "description": "Major depressive disorder, recurrent, moderate",
+      "predicted": false,
+      "match": "extra",
+      "agreeability": 0,
+      "grounding": "contradicted",
+      "noteExcerpts": [
+        "She discontinued sertraline approximately 18 months ago. She reports that her mood has been good since that time.",
+        "PHQ-9 completed today: 1/27, with one point for occasional fatigue.",
+        "\"That was a difficult period after my husband died, but I don't feel depressed anymore.\"",
+        "Psychiatric: Normal mood and affect. Appropriate behavior. Normal thought content and judgment.",
+        "Off sertraline for approximately 18 months without recurrence. PHQ-9 today 1/27. No current treatment indicated."
+      ],
+      "confidence": 0.86,
+      "rationale": "F33.1 (major depressive disorder, recurrent, moderate) describes an ACTIVE condition. The note documents resolution, not active illness: a bereavement-related episode treated ~3 years ago, sertraline discontinued 18 months ago, no recurrence, PHQ-9 of 1/27 (minimal), a normal psychiatric exam, and an explicit plan of 'No current treatment indicated.' A note-only coding expert would code remission (F33.42), not the active moderate code. F33.1 is an unsupported, high-value HCC (V28 HCC 155) diagnosis pad."
+    }
+  ],
+  "finding": {
+    "fraudType": "dx_inflation",
+    "verdict": "fraud",
+    "confidence": 0.86,
+    "summary": "The documented encounter supports hypertension, hyperlipidemia, and osteopenia, and documents the patient's depression as resolved (in remission). The billed F33.1 (active, recurrent, moderate MDD) is contradicted by the note — a high-value HCC diagnosis padded onto a wellness visit.",
+    "details": [
+      {
+        "code": "I10",
+        "status": "supported",
+        "evidence": "Assessment documents essential hypertension, well controlled, continuing amlodipine."
+      },
+      {
+        "code": "E78.5",
+        "status": "supported",
+        "evidence": "Assessment documents hyperlipidemia, stable, continuing atorvastatin."
+      },
+      {
+        "code": "M85.80",
+        "status": "supported",
+        "evidence": "Assessment documents osteopenia; continuing calcium/vitamin D, DEXA next year."
+      },
+      {
+        "code": "F33.1",
+        "status": "contradicted",
+        "evidence": "The note documents remission, not active depression: sertraline stopped 18 months ago, no recurrence, PHQ-9 1/27, normal psychiatric exam, 'No current treatment indicated.' Remission would be F33.42, not F33.1."
+      },
+      {
+        "code": "G0439",
+        "status": "supported_predicted",
+        "evidence": "Chief complaint and plan explicitly document a Medicare Annual Wellness Visit with a personalized prevention plan of service."
+      },
+      {
+        "finding": "pattern",
+        "status": "dx_inflation",
+        "evidence": "An extra, high-value HCC diagnosis (F33.1, V28 HCC 155) is billed as active when the encounter documents the condition as resolved — inflating the member's risk score without any additional service rendered."
+      }
+    ]
+  },
+  "legal_brief": "The documented encounter supports a Medicare Annual Wellness Visit, essential hypertension, hyperlipidemia, and osteopenia. The billed diagnosis F33.1 (major depressive disorder, recurrent, moderate) is contradicted by the note, which documents the depression as resolved: a bereavement-related episode treated approximately three years ago, sertraline discontinued 18 months ago, no recurrence, PHQ-9 of 1/27, a normal psychiatric exam, and an explicit plan of 'No current treatment indicated.' A note-only coding expert would code remission (F33.42), not the active moderate code. Billing F33.1 submits a high-value HCC diagnosis (V28 HCC 155, coefficient 0.299) the encounter does not support, inflating the Medicare Advantage risk score and capitated payment. Fraud type: dx_inflation. Verdict: fraud.\n\n",
+  "source": "live",
+  "detected": true,
+  "precomputed_at": "2026-09-16T09:00:00.000Z"
+}

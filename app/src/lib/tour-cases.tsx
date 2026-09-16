@@ -1072,7 +1072,192 @@ const HISTORY_012: TourCase = {
 };
 
 // ---------------------------------------------------------------------------
-// Registry — the 3 presentation demo cases first (demo: true), then the rest.
+// 7. case_depression_pad_013 — diagnosis padding (risk-adjustment)
+//    F33.1 (MDD, recurrent, moderate — ACTIVE) billed at a wellness visit
+//    where the note documents the depression as RESOLVED: bereavement-related,
+//    off sertraline 18 months, PHQ-9 1/27, "I don't feel depressed anymore,"
+//    normal psych exam, "No current treatment indicated." A note-only coding
+//    expert would code remission (F33.42) or flag F33.1 as unsupported — not
+//    bill the active moderate code. F33.1 is a high-value HCC (V28 HCC 155,
+//    coeff 0.299 ≈ $4,000/yr at the CMS 2025 base — bigger than the N18.30
+//    case). This teaches the core risk-adjustment rule: "on the problem list"
+//    ≠ "supported by the current encounter." No history needed.
+//    See docs/research-hcc-drg-fraud.md §F33 + docs/research-demo-categories.md.
+// ---------------------------------------------------------------------------
+
+// HCC risk-score → dollar impact (CMS-published, V28 model).
+// 0.299 coeff × $13,570/yr base ≈ $4,058/yr (raw); ÷1.045 norm ≈ $3,874/yr.
+const HCC_F33_PER_YEAR = 4000; // ~$3,874–4,058/yr headline figure
+
+const DEPRESSION_PAD_013: TourCase = {
+  caseId: "case_depression_pad_013",
+  fraudType: "dx_inflation",
+  billingModel: "risk_adjustment",
+  billingModelLabel: "Medicare Advantage · risk-adjusted",
+  demo: true, // presentation Demo 4 — resolved depression billed as active
+  teaser:
+    "Major depressive disorder billed as active at a wellness visit — but the note documents full remission: off sertraline 18 months, PHQ-9 1/27, 'I don't feel depressed anymore.'",
+  noteText:
+    "CC: Medicare Annual Wellness Visit and chronic disease follow-up.\n\nHistory of Present Illness: 72yo female. Overall reports doing well. Lives independently and remains active with gardening and walking approximately 30 minutes four times weekly.\n\nHypertension has been stable on amlodipine 5 mg daily. Home blood pressure readings generally range from 118-132/68-78 mmHg. Denies dizziness, syncope, chest pain, palpitations, or exertional dyspnea.\n\nHyperlipidemia treated with atorvastatin 20 mg nightly. Denies myalgias.\n\nPatient has history of depressive symptoms following the death of her husband approximately three years ago. At that time she was treated with sertraline 50 mg daily and attended grief counseling. She discontinued sertraline approximately 18 months ago. She reports that her mood has been good since that time. She denies depressed mood, anhedonia, hopelessness, sleep disturbance, impaired concentration, guilt, or suicidal ideation. PHQ-9 completed today: 1/27, with one point for occasional fatigue. Patient states: \"That was a difficult period after my husband died, but I don't feel depressed anymore.\" No psychiatric medication currently prescribed.\n\nProblem List: Essential hypertension. Hyperlipidemia. Osteopenia. Major depressive disorder, recurrent. History of grief reaction. Vitamin D deficiency.\n\nMedications: Amlodipine 5 mg daily. Atorvastatin 20 mg nightly. Vitamin D3 1,000 IU daily. Calcium carbonate 600 mg daily.\n\nReview of Systems: Constitutional: No fever, chills, or weight loss. Cardiovascular: No chest pain or palpitations. Respiratory: No cough or dyspnea. Neurologic: No dizziness or weakness. Psychiatric: Denies depression, anxiety, insomnia, suicidal ideation, or loss of interest.\n\nPhysical Examination: BP 126/72, HR 68, BMI 25.4. General: Well appearing, no acute distress. Cardiac: Regular rate and rhythm. Pulmonary: Clear bilaterally. Neurologic: Alert and oriented. Psychiatric: Normal mood and affect. Appropriate behavior. Normal thought content and judgment.\n\nAssessment and Plan:\n1. Essential hypertension - Well controlled. Continue amlodipine.\n2. Hyperlipidemia - Stable. Continue atorvastatin.\n3. Osteopenia - Continue calcium/vitamin D. DEXA next year.\n4. History of depressive episode following bereavement - Patient reports continued resolution of symptoms. Off sertraline for approximately 18 months without recurrence. PHQ-9 today 1/27. No current treatment indicated.\n5. Preventive care - Vaccinations reviewed. Mammogram ordered.",
+  correctCodes: [
+    { code: "I10", description: "Essential (primary) hypertension", fraudulent: false },
+    { code: "E78.5", description: "Hyperlipidemia, unspecified", fraudulent: false },
+    { code: "M85.80", description: "Other specified disorders of bone density and structure", fraudulent: false },
+    { code: "G0439", description: "Annual wellness visit, includes a personalized prevention plan of service", fraudulent: false },
+  ],
+  // The bill omits the wellness-visit code and pads F33.1 as ACTIVE moderate.
+  // The note supports remission (F33.42), not active F33.1 — the expert does
+  // not predict F33.1; it is unmatched/contradicted.
+  billedCodes: [
+    { code: "I10", description: "Essential (primary) hypertension", fraudulent: false },
+    { code: "E78.5", description: "Hyperlipidemia, unspecified", fraudulent: false },
+    { code: "M85.80", description: "Other specified disorders of bone density and structure", fraudulent: false },
+    {
+      code: "F33.1",
+      description: "Major depressive disorder, recurrent, moderate",
+      fraudulent: true,
+      flagReason:
+        "The note documents the depression as RESOLVED, not active: bereavement-related, off sertraline 18 months, PHQ-9 1/27, 'I don't feel depressed anymore,' normal psychiatric exam, and 'No current treatment indicated.' F33.1 (active recurrent moderate MDD) is unsupported — remission would be F33.42, not F33.1.",
+    },
+  ],
+  fraudCode: "F33.1",
+  fraudConfidence: 0.86,
+  fraudGrounding: 0.04,
+  missingEvidenceSpans: [
+    "She discontinued sertraline approximately 18 months ago. She reports that her mood has been good since that time.",
+    "PHQ-9 completed today: 1/27, with one point for occasional fatigue.",
+    "\"That was a difficult period after my husband died, but I don't feel depressed anymore.\"",
+    "Psychiatric: Normal mood and affect. Appropriate behavior. Normal thought content and judgment.",
+    "Off sertraline for approximately 18 months without recurrence. PHQ-9 today 1/27. No current treatment indicated.",
+  ],
+  proofHeadline:
+    "Look for evidence of ACTIVE, recurrent, moderate depression. The note documents the opposite — remission.",
+  proofBody:
+    "F33.1 (major depressive disorder, recurrent, moderate) describes an ACTIVE condition. The note documents resolution: a bereavement-related episode treated 3 years ago, sertraline stopped 18 months ago, no recurrence, a PHQ-9 of 1/27 (minimal), a normal psychiatric exam, and an explicit plan of 'No current treatment indicated.' A note-only coding expert would code remission (F33.42) — not bill the active moderate code. F33.1 is an unsupported, high-value HCC pad.",
+  steps: baseSteps({
+    intro: {
+      title: "The case",
+      subtitle: "A Medicare wellness visit — and a depression diagnosis the note says is gone.",
+      duration: 2600,
+    },
+    predicted: {
+      title: "What our coding expert predicted",
+      subtitle: "The note supports hypertension, hyperlipidemia, and osteopenia — and depression in remission, not active F33.1.",
+      duration: 4200,
+    },
+    retrace: {
+      title: "The retrace agent",
+      subtitle: "F33.1 is over-billed. The agent asks: does the note support active, recurrent, moderate depression?",
+      duration: 5600,
+    },
+    impact: {
+      title: "Why it pays",
+      subtitle: "F33.1 is a high-value HCC code. A resolved diagnosis billed as active inflates the plan's payment.",
+      duration: 5600,
+    },
+    verdict: {
+      title: "Verdict",
+      subtitle: "Diagnosis padding · Likely Fraud · a resolved condition billed as active.",
+      duration: 0,
+    },
+  }),
+  introFacts: [
+    { icon: Stethoscope, label: "Visit type", value: "Medicare annual wellness" },
+    { icon: HeartPulse, label: "Patient", value: "72yo female, active, independent" },
+    { icon: FileText, label: "Payer model", value: "Medicare Advantage — capitated, risk-adjusted" },
+  ],
+  introMechanism: [
+    {
+      body: (
+        <>
+          In <span className="font-semibold">risk-adjusted</span> Medicare Advantage, a
+          sicker <span className="font-medium text-[var(--foreground)]">diagnosis</span> raises the
+          plan&apos;s capitated payment — no extra procedure required.{" "}
+          <span className="font-medium">The diagnosis is the money.</span>
+        </>
+      ),
+    },
+    {
+      body: (
+        <>
+          Mental-health codes are prime padding targets: <span className="font-mono">F33.1</span>{" "}
+          (recurrent, moderate depression) carries a high HCC weight. The catch is that the note must
+          support an <span className="font-medium">active</span> condition — and this one documents
+          the opposite.
+        </>
+      ),
+    },
+  ],
+  mismatchTitle: "The mismatch: F33.1",
+  mismatchSubtitle: "Billed as active, recurrent, moderate depression — with a note that says it&apos;s resolved.",
+  mismatchTruthValue: "Remission",
+  mismatchTruthCaption: "Off sertraline 18 mo, PHQ-9 1/27, no current treatment",
+  impactTitle: "Why a diagnosis pays",
+  impactSubtitle:
+    "F33.1 is a high-value HCC — billing a resolved condition as active inflates the plan's payment.",
+  impactNodes: [
+    {
+      icon: FileText,
+      label: "F33.1 submitted",
+      sub: "active recurrent moderate MDD",
+      color: "var(--fraud-dx-inflation)",
+      soft: "var(--fraud-dx-inflation-soft)",
+    },
+    {
+      icon: TrendingUp,
+      label: "Risk score rises",
+      sub: "V28 HCC 155 · +0.299 to the member",
+      color: "var(--accent)",
+      soft: "var(--accent-soft)",
+    },
+    {
+      icon: DollarSign,
+      label: "Capitated payment ↑",
+      sub: `+${formatUSD(HCC_F33_PER_YEAR)}/yr to the plan`,
+      color: "var(--risk-high)",
+      soft: "var(--risk-high-soft)",
+    },
+  ],
+  impactStats: [
+    { label: "Per-claim HCC uplift", value: `${formatUSD(HCC_F33_PER_YEAR)}/yr` },
+    { label: "Risk-score delta", value: "+0.299 (V28 HCC 155)" },
+    { label: "Bigger than N18.30 pad", value: `~${Math.round(HCC_F33_PER_YEAR / HCC_N18_PER_YEAR)}× the CKD case` },
+  ],
+  impactInsight: (
+    <>
+      <span className="font-semibold">The key insight:</span> the depression is on the problem list —
+      but the note documents it as <span className="font-medium">resolved</span>: off sertraline 18
+      months, PHQ-9 of 1/27, a normal psych exam, and &ldquo;No current treatment indicated.&rdquo;
+      Billing <span className="font-mono font-semibold text-[var(--risk-high)]">F33.1</span> (active,
+      recurrent, moderate) instead of remission (<span className="font-mono">F33.42</span>) adds{" "}
+      <span className="font-medium">0.299</span> to the risk score — about{" "}
+      <span className="font-medium">{formatUSD(HCC_F33_PER_YEAR)}/yr</span> in added capitated payment.{" "}
+      <span className="font-medium">On the problem list is not the same as supported by the visit.</span>
+    </>
+  ),
+  verdictFacts: [
+    { icon: FileText, label: "Fraud type", value: "Diagnosis Inflation" },
+    { icon: Gavel, label: "Intent", value: "Likely Fraud" },
+    { icon: DollarSign, label: "HCC uplift", value: `${formatUSD(HCC_F33_PER_YEAR)}/yr`, money: true },
+    { icon: ScanSearch, label: "Evidence", value: "Remission, not active" },
+  ],
+  verdictConclusion: (
+    <>
+      <span className="font-semibold">The note documents remission, not active depression.</span> A
+      bereavement-related episode treated 3 years ago, sertraline stopped 18 months ago, no
+      recurrence, PHQ-9 of 1/27, a normal psychiatric exam, and &ldquo;No current treatment
+      indicated.&rdquo; Billing <span className="font-mono">F33.1</span> (active, recurrent, moderate
+      MDD) submits a high-value HCC diagnosis the encounter does not support — remission would be{" "}
+      <span className="font-mono">F33.42</span>. The diagnosis, not any procedure, is the money: about{" "}
+      {formatUSD(HCC_F33_PER_YEAR)}/yr in added Medicare Advantage capitated payment.
+    </>
+  ),
+  accentColor: "var(--fraud-dx-inflation)",
+  accentSoft: "var(--fraud-dx-inflation-soft)",
+};
+
+// ---------------------------------------------------------------------------
+// Registry — the presentation demo cases first (demo: true), then the rest.
 // The Live Demos hub shows a "Demo" badge on the demo:true cases.
 // ---------------------------------------------------------------------------
 
@@ -1080,7 +1265,8 @@ export const TOUR_CASES: TourCase[] = [
   PADDING_002, // Demo 1 — diagnosis padding (risk-adjustment), precomputed intro
   UNBUNDLING_003, // Demo 2 — unbundling (NCCI structural), precomputed mid
   HISTORY_012, // Demo 3 — impossible procedure (history-dependent), live finale
-  UPCODING_001, // reserve — not in the 3-case presentation
+  DEPRESSION_PAD_013, // Demo 4 — resolved depression billed as active (risk-adjustment)
+  UPCODING_001, // reserve — not in the presentation
   PHANTOM_004, // reserve
   CLONING_005, // reserve
 ];
