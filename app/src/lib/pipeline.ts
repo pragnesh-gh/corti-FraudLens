@@ -23,6 +23,7 @@ import { retraceAll } from "./agents/retrace";
 import { runJudgement } from "./agents/judgement";
 import { generateLegalBrief } from "./textgen";
 import { EM_CODES } from "./codes";
+import { startCaseTrace, traced } from "./opik";
 
 /** The single contract the UI depends on. Replay now; live later. */
 export interface Pipeline {
@@ -348,27 +349,37 @@ export const replayPipeline: Pipeline = {
 let _liveAgentId: string | null = null;
 
 /** Run the real Corti pipeline: predict → compare → retrace → judgement → brief.
- *  Falls back to replay (computeCaseResult) on any error so the demo never breaks. */
+ *  Falls back to replay (computeCaseResult) on any error so the demo never breaks.
+ *  Each step is wrapped in an Opik span when FRAUDLENS_TRACING=1 (no-op otherwise). */
 export async function runLivePipeline(client: CortiClient, c: Case, cfg: PipelineConfig): Promise<CaseResult> {
+  const otTrace = startCaseTrace(c.case_id, c.clinical_note);
+
   // Step 2: real code prediction via /v2/tools/coding.
-  const codingResp = await client.predictCodes(c.clinical_note, cfg.timeoutMs);
+  const codingResp = await traced(otTrace, "codes.predict", "llm", { note: c.clinical_note.slice(0, 1000) },
+    () => client.predictCodes(c.clinical_note, cfg.timeoutMs));
   const predictedProc = (codingResp.codes ?? []).filter((x) => x.system === "cpt").map((x) => x.code);
   const predictedDx = (codingResp.codes ?? []).filter((x) => x.system === "icd10cm-outpatient").map((x) => x.code);
   const predictedCodes = { procedures: predictedProc, dx: predictedDx };
 
   // Step 3+4: set-intersection + retrace over billed-not-predicted codes.
-  const { analyses, findings: retraceFindings } = await retraceAll(client, c, predictedCodes, cfg.timeoutMs);
+  const { analyses, findings: retraceFindings } = await traced(otTrace, "retrace.unmatched_codes", "tool",
+    { billed: c.submitted_codes.procedures.map((p) => p.code), predicted: predictedProc },
+    () => retraceAll(client, c, predictedCodes, cfg.timeoutMs));
 
   // Step 5: judgement agent.
-  const finding = await runJudgement(client, c, analyses, predictedCodes, cfg.timeoutMs);
+  const finding = await traced(otTrace, "judgement", "llm", { analyses_count: analyses.length },
+    () => runJudgement(client, c, analyses, predictedCodes, cfg.timeoutMs));
 
   // Step 6: legal brief (first-class output).
   let legal_brief: string | undefined;
   try {
-    legal_brief = await generateLegalBrief(client, c, finding, cfg.timeoutMs);
+    legal_brief = await traced(otTrace, "impact.legal_brief", "general", { fraudType: finding.fraudType },
+      () => generateLegalBrief(client, c, finding, cfg.timeoutMs));
   } catch {
     // brief is best-effort; the case result is still valid without it
   }
+
+  await otTrace.end({ verdict: finding.verdict, fraudType: finding.fraudType, detected: !!c.planted_fraud });
 
   // Build the CaseResult in the same shape as the replay engine.
   const predictedEm = predictedProc.find((p) => p.startsWith("992")) ?? predictedProc[0] ?? "99213";
