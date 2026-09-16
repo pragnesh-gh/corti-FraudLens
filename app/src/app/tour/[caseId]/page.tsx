@@ -147,7 +147,7 @@ function TourCaseExperience({
   const billedSet = useMemo(() => new Set(billed.map((b) => b.code)), [billed]);
 
   const predicted: { code: string; description: string }[] = useMemo(
-    () => [...new Map([...correct, ...billed.filter((b) => !correctSet.has(b.code) && b.fraudulent === false)].map((c) => [c.code, c.description])).values()],
+    () => [...new Map([...correct, ...billed.filter((b) => !correctSet.has(b.code) && b.fraudulent === false)].map((c) => [c.code, c] as const)).values()],
     [correct, billed, correctSet],
   );
   const predictedSet = useMemo(() => new Set(predicted.map((p) => p.code)), [predicted]);

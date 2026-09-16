@@ -100,7 +100,7 @@ export function IntentBadge({
         style={{
           background: "var(--risk-high)",
           borderColor: "var(--risk-high)",
-          boxShadow: "0 0 8px rgba(255, 42, 141, 0.4)",
+          boxShadow: "0 0 8px rgba(255, 107, 74, 0.4)",
         }}
       >
         Likely Fraud
@@ -134,7 +134,7 @@ export function Card({
   return (
     <div
       className={cn("glass rounded-xl transition-colors", className)}
-      style={glow ? { borderColor: "rgba(255, 42, 141, 0.35)" } : undefined}
+      style={glow ? { borderColor: "rgba(255, 122, 80, 0.35)" } : undefined}
     >
       {children}
     </div>
@@ -343,8 +343,8 @@ const MATCH_STYLE: Record<
     label: "Over-billed",
   },
   "under-billed": {
-    chip: "bg-[rgba(222,183,255,0.12)] text-[var(--fraud-cloning)]",
-    pill: "bg-[rgba(222,183,255,0.12)] text-[var(--fraud-cloning)]",
+    chip: "bg-[var(--fraud-cloning-soft)] text-[var(--fraud-cloning)]",
+    pill: "bg-[var(--fraud-cloning-soft)] text-[var(--fraud-cloning)]",
     label: "Under-billed",
   },
 };

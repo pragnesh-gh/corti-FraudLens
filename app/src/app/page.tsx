@@ -7,7 +7,7 @@ import { formatUSD, formatDate, cn } from "@/lib/utils";
 import { RiskBadge, FraudChip, IntentBadge, Card } from "@/components/ui";
 import { ALL_FRAUD_TYPES } from "@/lib/fraud-meta";
 import type { FraudType, Role } from "@/lib/types";
-import { ArrowUpDown, Search, ChevronRight, AlertTriangle, DollarSign, FolderOpen, Activity } from "lucide-react";
+import { ArrowUpDown, Search, ChevronRight, AlertTriangle, FolderOpen, Activity, ShieldAlert } from "lucide-react";
 import { getFraming } from "@/components/app-shell";
 
 type SortKey = "risk" | "impact" | "date";
@@ -56,13 +56,6 @@ export default function CaseQueuePage() {
     return r;
   }, [worklist, query, typeFilter, sortKey]);
 
-  const kpis = [
-    { label: "Total flagged $", value: formatUSD(totalFlagged, true), icon: DollarSign, color: "var(--risk-high)" },
-    { label: "Open cases", value: openCases, icon: FolderOpen, color: "var(--accent)" },
-    { label: "Flagged providers", value: flaggedProviders, icon: AlertTriangle, color: "var(--risk-med)" },
-    { label: "Avg. risk score", value: avgRisk, icon: Activity, color: "var(--foreground)" },
-  ];
-
   return (
     <div className="space-y-5">
       {/* Role-aware framing */}
@@ -88,28 +81,89 @@ export default function CaseQueuePage() {
         </div>
       </div>
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {kpis.map((k) => {
-          const Icon = k.icon;
-          return (
-            <Card key={k.label} className="flex items-center gap-3 px-4 py-3">
-              <span
-                className="flex h-9 w-9 items-center justify-center rounded-lg"
-                style={{ background: `${k.color}14`, color: k.color }}
-              >
-                <Icon className="h-4.5 w-4.5" />
-              </span>
-              <div>
-                <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">{k.label}</div>
-                <div className="text-lg font-bold tabular-nums">{k.value}</div>
+      {/* Bento grid — KPI overview.
+          Hero: total flagged $ (large, coral gradient). Medium tiles: open cases,
+          flagged providers, avg risk. Collapses to 1→2→4 columns responsively. */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-12 lg:gap-4">
+        {/* Hero — total flagged impact */}
+        <Card
+          glow
+          className="col-span-2 flex flex-col justify-between gap-3 overflow-hidden p-5 md:col-span-5 md:row-span-2"
+        >
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">
+                <ShieldAlert className="h-3.5 w-3.5 text-[var(--risk-high)]" />
+                Total flagged impact
               </div>
-            </Card>
-          );
-        })}
+              <p className="mt-2 font-display text-4xl font-extrabold tabular-nums tracking-tight text-[var(--foreground)]">
+                {formatUSD(totalFlagged, true)}
+              </p>
+              <p className="mt-1 text-sm text-[var(--muted)]">Projected across {openCases} open cases</p>
+            </div>
+          </div>
+          {/* Mini bar of fraud-type distribution */}
+          <div className="flex h-2 w-full overflow-hidden rounded-full bg-[var(--surface-2)]">
+            {ALL_FRAUD_TYPES.map((t) => {
+              const n = worklist.filter((w) => w.fraud_types.includes(t)).length;
+              const total = worklist.length || 1;
+              if (n === 0) return null;
+              return (
+                <span
+                  key={t}
+                  title={`${ALL_FRAUD_TYPES.find((x) => x === t)?.replace("_", " ")}: ${n}`}
+                  style={{
+                    background: `var(--fraud-${t.replace("_", "-")})`,
+                    width: `${(n / total) * 100}%`,
+                  }}
+                />
+              );
+            })}
+          </div>
+        </Card>
+
+        {/* Medium tiles */}
+        <Card className="col-span-1 flex items-center gap-3 px-4 py-3 md:col-span-3">
+          <span
+            className="flex h-10 w-10 items-center justify-center rounded-xl"
+            style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+          >
+            <FolderOpen className="h-5 w-5" />
+          </span>
+          <div>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">Open cases</div>
+            <div className="text-2xl font-bold tabular-nums">{openCases}</div>
+          </div>
+        </Card>
+
+        <Card className="col-span-1 flex items-center gap-3 px-4 py-3 md:col-span-4">
+          <span
+            className="flex h-10 w-10 items-center justify-center rounded-xl"
+            style={{ background: "var(--risk-med-soft)", color: "var(--risk-med)" }}
+          >
+            <AlertTriangle className="h-5 w-5" />
+          </span>
+          <div>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">Flagged providers</div>
+            <div className="text-2xl font-bold tabular-nums">{flaggedProviders}</div>
+          </div>
+        </Card>
+
+        <Card className="col-span-2 flex items-center gap-3 px-4 py-3 md:col-span-3">
+          <span
+            className="flex h-10 w-10 items-center justify-center rounded-xl"
+            style={{ background: "var(--surface-2)", color: "var(--foreground)" }}
+          >
+            <Activity className="h-5 w-5" />
+          </span>
+          <div>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">Avg. risk score</div>
+            <div className="text-2xl font-bold tabular-nums">{avgRisk}</div>
+          </div>
+        </Card>
       </div>
 
-      {/* Worklist */}
+      {/* Worklist — full-width bento tile */}
       <Card className="overflow-hidden">
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] px-4 py-3">

@@ -50,7 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header
         className="sticky top-0 z-30 border-b border-[var(--border)]"
         style={{
-          background: "rgba(19, 15, 48, 0.8)",
+          background: "rgba(19, 19, 24, 0.8)",
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
         }}
@@ -61,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className="flex h-9 w-9 items-center justify-center rounded-xl text-white"
               style={{
                 background: "var(--grad-1)",
-                boxShadow: "0 4px 20px rgba(255, 42, 141, 0.4)",
+                boxShadow: "0 4px 20px rgba(255, 122, 80, 0.4)",
               }}
             >
               <ShieldCheck className="h-4.5 w-4.5" strokeWidth={2.5} />
@@ -70,7 +70,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               Fraud
               <span
                 style={{
-                  background: "linear-gradient(135deg, #e5defe, #ffb1c7)",
+                  background: "linear-gradient(135deg, #ffb59f, #a9c2ff)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",

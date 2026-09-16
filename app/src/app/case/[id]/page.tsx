@@ -179,7 +179,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         </Link>
       </div>
 
-      {/* Agent pipeline (streaming cards) */}
+      {/* Agent pipeline (streaming cards) — full-width bento tile */}
       <Card>
         <CardHeader title="Agent pipeline" subtitle="Orchestrated agents — facts, coding, grounding, verification, judgement, impact" />
         <div className="flex flex-wrap gap-2.5 p-4">
@@ -195,10 +195,102 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </Card>
 
-      {/* Main grid: note + codes/findings */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_1fr]">
-        {/* Left: clinical note */}
-        <Card className="overflow-hidden">
+      {/* Bento grid: detector verdict (large), economic impact (small), code
+          analysis (wide), clinical note (tall), findings, legal brief (full).
+          Collapses to a single column on small screens. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        {/* Detector verdict — large prominent tile (spans 2 cols + 2 rows) */}
+        {verdictFinding && (
+          <Card className="overflow-hidden lg:col-span-4 lg:row-span-2">
+            <CardHeader
+              title="Detector verdict"
+              subtitle="Agentic judgement — coding expert reasons over the comparison"
+              right={<Gavel className="h-4 w-4 text-[var(--accent)]" />}
+            />
+            <div className="space-y-3 px-5 py-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <FraudChip type={caseCategory ?? "upcoding"} />
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                    caseVerdict === "fraud"
+                      ? "bg-[var(--risk-high-soft)] text-[var(--risk-high)]"
+                      : caseVerdict === "error"
+                        ? "bg-[var(--risk-med-soft)] text-[var(--risk-med)]"
+                        : "bg-[var(--risk-low-soft)] text-[var(--risk-low)]",
+                  )}
+                >
+                  {caseVerdict === "fraud" ? "Likely fraud" : caseVerdict === "error" ? "Possible error" : "Clean"}
+                </span>
+                <span className="ml-auto text-xs text-[var(--muted-2)]">
+                  Confidence <span className="font-semibold text-[var(--foreground)]">{formatPct(verdictFinding.confidence)}</span>
+                </span>
+              </div>
+              <p className="text-sm leading-relaxed text-[var(--foreground)]">{verdictFinding.rationale}</p>
+              {verdictFinding.analysis && verdictFinding.analysis.noteExcerpts.length > 0 && (
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                  <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">
+                    Grounding — note excerpts cited by the retrace agent
+                  </p>
+                  <ul className="space-y-1.5">
+                    {verdictFinding.analysis.noteExcerpts.slice(0, 4).map((ex, i) => (
+                      <li key={i} className="text-xs italic leading-snug text-[var(--muted)]">
+                        “{ex}”
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </Card>
+        )}
+
+        {/* Economic impact — small tile */}
+        {result.total_impact > 0 && (
+          <Card className="overflow-hidden lg:col-span-4">
+            <CardHeader title="Economic impact" subtitle="Deterministic — overpayment × frequency × penalty multiplier" right={<DollarSign className="h-4 w-4 text-[var(--risk-high)]" />} />
+            <div className="px-5 py-4">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold tabular-nums text-[var(--risk-high)]">{formatUSD(result.total_impact, true)}</span>
+                <span className="text-sm text-[var(--muted)]">projected</span>
+              </div>
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                Extrapolated by detected frequency (45 similar claims) × 2.5× penalty multiplier for likely fraud.
+              </p>
+            </div>
+          </Card>
+        )}
+
+        {/* Findings — small tile */}
+        <Card className="lg:col-span-4">
+          <CardHeader title="Findings" subtitle={`${result.findings.length} flag${result.findings.length === 1 ? "" : "s"} · ${formatUSD(result.total_impact, true)} projected impact`} />
+          <div className="space-y-2 p-3">
+            {result.findings.length === 0 && (
+              <div className="px-2 py-6 text-center text-sm text-[var(--muted)]">No anomalies. Codes align with the note.</div>
+            )}
+            {result.findings.map((f, i) => (
+              <FindingRow key={i} finding={f} onActivate={() => setActiveSpan(f.code)} active={activeSpan === f.code} />
+            ))}
+          </div>
+        </Card>
+
+        {/* Code analysis — wide tile */}
+        <Card className="lg:col-span-7">
+          <CardHeader
+            title="Code analysis"
+            subtitle="What the provider billed vs what our coding expert predicted"
+          />
+          <div className="p-4">
+            <CodeComparisonTable rows={comparisonRows} />
+            <p className="mt-3 text-[11px] leading-snug text-[var(--muted-2)]">
+              <span className="font-semibold text-[var(--risk-high)]">Over-billed</span> codes were not predicted by our expert and were retraced by the agentic framework —
+              the <span className="font-semibold text-[var(--foreground)]">agreeability</span> score rates how defensible each is (high = minor miss, low = likely fraud).
+            </p>
+          </div>
+        </Card>
+
+        {/* Clinical note — tall tile */}
+        <Card className="overflow-hidden lg:col-span-5">
           <CardHeader
             title="Clinical note"
             subtitle="Click a finding to highlight its evidence in the note"
@@ -218,122 +310,29 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
           </div>
         </Card>
 
-        {/* Right: codes + findings */}
-        <div className="space-y-4">
-          {/* Detector verdict — case-level judgement from the agentic pipeline */}
-          {verdictFinding && (
-            <Card className="overflow-hidden">
-              <CardHeader
-                title="Detector verdict"
-                subtitle="Agentic judgement — coding expert reasons over the comparison"
-                right={<Gavel className="h-4 w-4 text-[var(--accent)]" />}
-              />
-              <div className="space-y-3 px-5 py-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <FraudChip type={caseCategory ?? "upcoding"} />
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold",
-                      caseVerdict === "fraud"
-                        ? "bg-[var(--risk-high-soft)] text-[var(--risk-high)]"
-                        : caseVerdict === "error"
-                          ? "bg-[var(--risk-med-soft)] text-[var(--risk-med)]"
-                          : "bg-[var(--risk-low-soft)] text-[var(--risk-low)]",
-                    )}
-                  >
-                    {caseVerdict === "fraud" ? "Likely fraud" : caseVerdict === "error" ? "Possible error" : "Clean"}
-                  </span>
-                  <span className="ml-auto text-xs text-[var(--muted-2)]">
-                    Confidence <span className="font-semibold text-[var(--foreground)]">{formatPct(verdictFinding.confidence)}</span>
-                  </span>
-                </div>
-                <p className="text-sm leading-relaxed text-[var(--foreground)]">{verdictFinding.rationale}</p>
-                {verdictFinding.analysis && verdictFinding.analysis.noteExcerpts.length > 0 && (
-                  <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
-                    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">
-                      Grounding — note excerpts cited by the retrace agent
-                    </p>
-                    <ul className="space-y-1.5">
-                      {verdictFinding.analysis.noteExcerpts.slice(0, 4).map((ex, i) => (
-                        <li key={i} className="text-xs italic leading-snug text-[var(--muted)]">
-                          “{ex}”
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
-
-          {/* Code analysis — set-intersection comparison + per-code agreeability */}
-          <Card>
+        {/* Legal / referral brief — full-width tile (textgen via Guided Docs) */}
+        {result.legal_brief && (
+          <Card className="surface-sober overflow-hidden lg:col-span-12">
             <CardHeader
-              title="Code analysis"
-              subtitle="What the provider billed vs what our coding expert predicted"
+              title="Case referral brief"
+              subtitle="Generated by textgen (Guided Docs) from the detector findings — preliminary, not a determination"
+              right={<Scale className="h-4 w-4 text-[var(--accent)]" />}
             />
-            <div className="p-4">
-              <CodeComparisonTable rows={comparisonRows} />
-              <p className="mt-3 text-[11px] leading-snug text-[var(--muted-2)]">
-                <span className="font-semibold text-[var(--risk-high)]">Over-billed</span> codes were not predicted by our expert and were retraced by the agentic framework —
-                the <span className="font-semibold text-[var(--foreground)]">agreeability</span> score rates how defensible each is (high = minor miss, low = likely fraud).
+            <div className="print-sober px-5 py-4">
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--foreground)]">{result.legal_brief}</p>
+              <p className="mt-4 border-t border-[var(--border)] pt-3 text-[11px] italic leading-snug text-[var(--muted-2)]">
+                This AI-generated analysis is a preliminary investigation assessment and does not constitute a legal
+                conclusion or a determination of fraud. Mere coding discrepancies do not establish a violation.
               </p>
+              <button
+                onClick={() => window.print()}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+              >
+                <FileText className="h-3.5 w-3.5" /> Print / save as PDF
+              </button>
             </div>
           </Card>
-
-          {/* Findings / fraud flags */}
-          <Card>
-            <CardHeader title="Findings" subtitle={`${result.findings.length} flag${result.findings.length === 1 ? "" : "s"} · ${formatUSD(result.total_impact, true)} projected impact`} />
-            <div className="space-y-2 p-3">
-              {result.findings.length === 0 && (
-                <div className="px-2 py-6 text-center text-sm text-[var(--muted)]">No anomalies. Codes align with the note.</div>
-              )}
-              {result.findings.map((f, i) => (
-                <FindingRow key={i} finding={f} onActivate={() => setActiveSpan(f.code)} active={activeSpan === f.code} />
-              ))}
-            </div>
-          </Card>
-
-          {/* Economic impact */}
-          {result.total_impact > 0 && (
-            <Card className="overflow-hidden">
-              <CardHeader title="Economic impact" subtitle="Deterministic — overpayment × frequency × penalty multiplier" right={<DollarSign className="h-4 w-4 text-[var(--risk-high)]" />} />
-              <div className="px-5 py-4">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold tabular-nums text-[var(--risk-high)]">{formatUSD(result.total_impact, true)}</span>
-                  <span className="text-sm text-[var(--muted)]">projected across similar claims</span>
-                </div>
-                <p className="mt-2 text-xs text-[var(--muted)]">
-                  Single-claim overpayment extrapolated by detected frequency (45 similar claims) × 2.5× penalty multiplier for likely fraud.
-                </p>
-              </div>
-            </Card>
-          )}
-
-          {/* Legal / referral brief — first-class output (textgen via Guided Docs) */}
-          {result.legal_brief && (
-            <Card className="surface-sober overflow-hidden">
-              <CardHeader
-                title="Case referral brief"
-                subtitle="Generated by textgen (Guided Docs) from the detector findings — preliminary, not a determination"
-                right={<Scale className="h-4 w-4 text-[var(--accent)]" />}
-              />
-              <div className="print-sober px-5 py-4">
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--foreground)]">{result.legal_brief}</p>
-                <p className="mt-4 border-t border-[var(--border)] pt-3 text-[11px] italic leading-snug text-[var(--muted-2)]">
-                  This AI-generated analysis is a preliminary investigation assessment and does not constitute a legal
-                  conclusion or a determination of fraud. Mere coding discrepancies do not establish a violation.
-                </p>
-                <button
-                  onClick={() => window.print()}
-                  className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
-                >
-                  <FileText className="h-3.5 w-3.5" /> Print / save as PDF
-                </button>
-              </div>
-            </Card>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );

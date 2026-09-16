@@ -26,9 +26,9 @@ import type { ReactNode } from "react";
 type Capability = "textgen" | "coding" | "agentic" | "deterministic";
 
 const CAP_META: Record<Capability, { label: string; color: string; soft: string }> = {
-  textgen: { label: "Text generation", color: "var(--cap-textgen)", soft: "rgba(123,44,191,0.12)" },
-  coding: { label: "Medical coding", color: "var(--accent)", soft: "var(--accent-soft)" },
-  agentic: { label: "Agentic framework", color: "var(--risk-high)", soft: "var(--risk-high-soft)" },
+  textgen: { label: "Text generation", color: "var(--cap-textgen)", soft: "var(--cap-textgen-soft)" },
+  coding: { label: "Medical coding", color: "var(--cap-coding)", soft: "var(--cap-coding-soft)" },
+  agentic: { label: "Agentic framework", color: "var(--cap-agentic)", soft: "var(--cap-agentic-soft)" },
   deterministic: { label: "Deterministic", color: "var(--muted)", soft: "var(--surface-2)" },
 };
 
@@ -141,19 +141,45 @@ export default function ArchitecturePage() {
         </p>
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">Capabilities:</span>
-        {(Object.keys(CAP_META) as Capability[]).map((k) => (
-          <span
-            key={k}
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
-            style={{ background: CAP_META[k].soft, color: CAP_META[k].color }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: CAP_META[k].color }} />
-            {CAP_META[k].label}
-          </span>
-        ))}
+      {/* Bento row: capability legend (wide) + honesty note (tall). Collapses
+          to a single column on small screens. */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-4">
+        {/* Legend — wide tile */}
+        <div className="lg:col-span-7">
+          <Card className="h-full p-4">
+            <p className="mb-3 text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">Capabilities</p>
+            <div className="flex flex-wrap items-center gap-2.5">
+              {(Object.keys(CAP_META) as Capability[]).map((k) => (
+                <span
+                  key={k}
+                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+                  style={{ background: CAP_META[k].soft, color: CAP_META[k].color }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: CAP_META[k].color }} />
+                  {CAP_META[k].label}
+                </span>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        {/* Honesty note — tall tile */}
+        <div className="lg:col-span-5">
+          <Card className="h-full p-4">
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--muted-2)]">Why this is honest</p>
+            <p className="text-sm leading-relaxed text-[var(--muted)]">
+              Synthetic cases carry <span className="font-semibold text-[var(--foreground)]">planted fraud</span> as an
+              answer key. The pipeline never reads it to produce findings — it derives them from the note text,
+              billed codes, and agent reasoning. A <span className="font-semibold text-[var(--risk-low)]">detected</span>{" "}
+              signal confirms the detector independently arrived at the planted type.
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-[var(--muted-2)]">
+              Traced with{" "}
+              <span className="font-semibold text-[var(--cap-textgen)]">Opik</span> when{" "}
+              <code className="rounded bg-[var(--surface-2)] px-1 py-0.5 font-mono text-[10px]">FRAUDLENS_TRACING=1</code>.
+            </p>
+          </Card>
+        </div>
       </div>
 
       {/* Flow */}
@@ -183,29 +209,6 @@ export default function ArchitecturePage() {
           ))}
         </FlowRow>
       </div>
-
-      {/* Honesty note */}
-      <Card>
-        <CardHeader
-          title="Why this is honest"
-          subtitle="The detector arrives at findings independently — planted fraud is the test, not the input"
-        />
-        <div className="px-5 py-4 text-sm leading-relaxed text-[var(--muted)]">
-          <p>
-            Synthetic cases carry <span className="font-semibold text-[var(--foreground)]">planted fraud</span> as an
-            answer key. The pipeline never reads it to produce findings — it derives them from the note text,
-            billed codes, and agent reasoning. A <span className="font-semibold text-[var(--risk-low)]">detected</span>{" "}
-            signal confirms the detector independently arrived at the planted type. Where the category differs
-            (e.g. planted upcoding, detected dx-inflation), the demo surfaces the mismatch rather than hiding it.
-          </p>
-          <p className="mt-3">
-            Every step is traced with{" "}
-            <span className="font-semibold text-[var(--cap-textgen)]">Opik</span> when{" "}
-            <code className="rounded bg-[var(--surface-2)] px-1 py-0.5 font-mono text-xs">FRAUDLENS_TRACING=1</code> —
-            open the trace per case to watch each agent&apos;s inputs, outputs, and reasoning.
-          </p>
-        </div>
-      </Card>
     </div>
   );
 }

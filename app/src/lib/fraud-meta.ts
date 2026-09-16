@@ -42,7 +42,7 @@ export const FRAUD_META: Record<
     short: "PH",
     icon: Ghost,
     color: "var(--fraud-phantom)",
-    soft: "rgba(123, 44, 191, 0.15)",
+    soft: "var(--fraud-phantom-soft)",
     description: "Services billed but not rendered.",
   },
   dx_inflation: {
@@ -50,7 +50,7 @@ export const FRAUD_META: Record<
     short: "DX",
     icon: TrendingUp,
     color: "var(--fraud-dx-inflation)",
-    soft: "var(--risk-med-soft)",
+    soft: "var(--fraud-dx-inflation-soft)",
     description: "Severity diagnoses unsupported by the chart.",
   },
   cloning: {
@@ -58,7 +58,7 @@ export const FRAUD_META: Record<
     short: "CL",
     icon: Copy,
     color: "var(--fraud-cloning)",
-    soft: "rgba(222, 183, 255, 0.12)",
+    soft: "var(--fraud-cloning-soft)",
     description: "Identical notes across encounters or patients.",
   },
 };

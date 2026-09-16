@@ -1,77 +1,92 @@
 @import "tailwindcss";
 
 /* ============================================================================
-   FraudLens — Luminous Cyber-Glassmorphism design system
-   Dark-first. Canvas: ink-violet void. Accents: radiant fuchsia, solar amber,
-   electric violet, safe emerald. Glass surfaces use backdrop-filter blur.
-   Serious surfaces (legal brief, evidence) render a restrained printable
-   variant via the `.surface-sober` class + the @media print block.
-   Reference: hackathon/DESIGN.md ("Luminous Forensic Intelligence").
+   FraudLens — Obsidian Sunset design system
+   Dark-first. Canvas: deep obsidian void. Accents: radiant sunset coral,
+   electric twilight periwinkle, soft radiant peach. Glass surfaces use
+   backdrop-filter blur with a top-edge specularity highlight. Pill-shaped
+   controls echo high-fidelity hardware. Serious surfaces (legal brief,
+   evidence) render a restrained printable variant via `.surface-sober` +
+   the @media print block.
+   Reference: docs/DESIGN (1).md ("Obsidian Sunset").
    ========================================================================= */
 
 :root {
-  /* ---- Canvas & elevation ---- */
-  --background: #0b081e; /* ink-violet void */
-  --background-2: #130f30; /* surface elevation 1 (panels/shelves) */
-  --surface: #1a153e; /* surface elevation 2 (interactive cards) */
-  --surface-glass: rgba(26, 21, 62, 0.65); /* glass overlay tier */
-  --surface-glass-strong: rgba(32, 25, 78, 0.85); /* floating tier (modals) */
-  --surface-2: rgba(255, 255, 255, 0.03); /* alt rows / wells */
+  /* ---- Canvas & elevation (multi-tier obsidian neutrals) ---- */
+  --background: #0b0b0e; /* canvas base — deepest background layer */
+  --background-2: #131318; /* surface elevation 1 (nav rail, panels, shelves) */
+  --surface: #1b1b22; /* surface elevation 2 (interactive cards, active selections) */
+  --surface-glass: rgba(27, 27, 34, 0.65); /* glass overlay tier (popovers, flyouts) */
+  --surface-glass-strong: rgba(39, 39, 46, 0.82); /* floating tier (modals, menus) */
+  --surface-2: rgba(255, 255, 255, 0.04); /* alt rows / wells */
   --surface-sober: #fbfafe; /* restrained light surface for legal/evidence */
   --surface-sober-2: #f4f2fb; /* alt row on sober surface */
   --surface-sober-ink: #1a1a2e; /* ink text on sober surface */
 
-  /* ---- Borders ---- */
-  --border: rgba(255, 255, 255, 0.08); /* ghost boundary */
-  --border-strong: rgba(255, 255, 255, 0.15); /* luminous rim */
+  /* ---- Borders & dividers (hairline charcoal seams) ---- */
+  --border: rgba(42, 42, 54, 0.7); /* ghost boundary hairline */
+  --border-strong: #3d3d4a; /* luminous rim */
   --border-sober: #e6e2f0;
 
   /* ---- Text ---- */
-  --foreground: #e5defe; /* primary text */
-  --muted: rgba(229, 222, 254, 0.65); /* secondary text */
-  --muted-2: rgba(229, 222, 254, 0.4); /* tertiary / placeholder */
+  --foreground: #f5f5f7; /* pristine off-white — message content, headers */
+  --muted: #9393a6; /* subdued slate — metadata, timestamps, secondary */
+  --muted-2: rgba(147, 147, 166, 0.6); /* tertiary / placeholder */
 
-  /* ---- Accent: radiant fuchsia (primary) ---- */
-  --accent: #ff2a8d;
-  --accent-soft: rgba(255, 42, 141, 0.15);
-  --accent-soft-2: rgba(255, 42, 141, 0.08);
-  --accent-tint: #ffb1c7; /* on-accent readable tint */
+  /* ---- Accent: radiant sunset coral (primary) ---- */
+  --accent: #ff7a50; /* energetic sunset coral — CTAs, mentions, focus */
+  --accent-soft: rgba(255, 122, 80, 0.15);
+  --accent-soft-2: rgba(255, 122, 80, 0.08);
+  --accent-tint: #ffb59f; /* on-accent readable coral tint */
+  --tertiary: #ffb38a; /* radiant peach — glows, orbs, hover transitions */
+  --secondary: #508cff; /* electric twilight periwinkle — links, waveforms */
 
-  /* ---- Semantic risk colors (neon) ---- */
-  --risk-high: #ff2a8d; /* fuchsia — critical anomaly / fraud */
-  --risk-high-soft: rgba(255, 42, 141, 0.15);
-  --risk-med: #ff8a00; /* solar amber — warning / error */
-  --risk-med-soft: rgba(255, 138, 0, 0.15);
-  --risk-low: #00f5a0; /* safe emerald — compliant / clean */
-  --risk-low-soft: rgba(0, 245, 160, 0.12);
+  /* ---- Semantic risk colors ---- */
+  --risk-high: #ff6b4a; /* coral-red — critical anomaly / fraud */
+  --risk-high-soft: rgba(255, 107, 74, 0.15);
+  --risk-med: #ffb454; /* warm amber — warning / error */
+  --risk-med-soft: rgba(255, 180, 84, 0.15);
+  --risk-low: #22c55e; /* emerald — compliant / clean (spec presence green) */
+  --risk-low-soft: rgba(34, 197, 94, 0.15);
 
   /* ---- Capability accents (the three Corti capabilities) ---- */
-  --cap-textgen: #7b2cbf; /* electric violet — AI text generation */
-  --cap-coding: #00f5a0; /* emerald — medical coding */
-  --cap-agentic: #ff2a8d; /* fuchsia — agentic framework */
+  --cap-textgen: #508cff; /* electric periwinkle — AI text generation */
+  --cap-textgen-soft: rgba(80, 140, 255, 0.14);
+  --cap-coding: #22c55e; /* emerald — medical coding */
+  --cap-coding-soft: rgba(34, 197, 94, 0.14);
+  --cap-agentic: #ff7a50; /* sunset coral — agentic framework */
+  --cap-agentic-soft: rgba(255, 122, 80, 0.15);
 
-  /* ---- Per-fraud-type accents (reconciled neon DESIGN.md set) ---- */
-  --fraud-upcoding: #ff2a8d; /* radiant fuchsia */
-  --fraud-unbundling: #ff8a00; /* solar amber */
-  --fraud-phantom: #7b2cbf; /* electric violet */
-  --fraud-dx-inflation: #ff8a00; /* amber (severity inflation) */
-  --fraud-cloning: #deb7ff; /* tertiary violet tint */
+  /* ---- Per-fraud-type accents (Obsidian Sunset family, semantically distinct) ---- */
+  --fraud-upcoding: #ff7a50; /* sunset coral — flagship upcoding */
+  --fraud-upcoding-soft: rgba(255, 122, 80, 0.15);
+  --fraud-unbundling: #ffb454; /* amber-gold — unbundling */
+  --fraud-unbundling-soft: rgba(255, 180, 84, 0.16);
+  --fraud-phantom: #508cff; /* periwinkle — phantom billing */
+  --fraud-phantom-soft: rgba(80, 140, 255, 0.15);
+  --fraud-dx-inflation: #ff9e6c; /* peach-coral — diagnosis inflation */
+  --fraud-dx-inflation-soft: rgba(255, 158, 108, 0.16);
+  --fraud-cloning: #a9c2ff; /* light periwinkle — cloning */
+  --fraud-cloning-soft: rgba(169, 194, 255, 0.14);
 
-  /* ---- Glow & shadow ---- */
-  --glow-accent: 0 0 24px rgba(255, 42, 141, 0.25);
-  --glow-accent-hover: 0 0 30px rgba(255, 42, 141, 0.15);
-  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.37), inset 0 1px 1px rgba(255, 255, 255, 0.1);
-  --shadow-float: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 20px rgba(123, 44, 191, 0.2);
+  /* ---- Glow & shadow (glass specularity + floating depth) ---- */
+  --glow-accent: 0 0 24px rgba(255, 122, 80, 0.28);
+  --glow-accent-hover: 0 0 30px rgba(255, 122, 80, 0.18);
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  --shadow-float: 0 12px 36px -4px rgba(0, 0, 0, 0.65), 0 0 0 1px #2a2a36;
 
-  /* ---- Gradients ---- */
-  --grad-1: linear-gradient(135deg, #ff2a8d, #ff8a00);
-  --grad-2: linear-gradient(135deg, #7b2cbf, #ff2a8d);
-  --grad-3: linear-gradient(135deg, #00f5a0, #7b2cbf);
-  --grad-4: linear-gradient(135deg, #ff8a00, #ff2a8d);
-  --grad-hero: linear-gradient(90deg, #ff2a8d 0%, #ff8a00 100%);
+  /* ---- Gradients (dawn-to-sunset ramp) ---- */
+  --grad-1: linear-gradient(135deg, #ff7a50 0%, #ff9e6c 100%);
+  --grad-2: linear-gradient(135deg, #ff7a50 0%, #508cff 100%);
+  --grad-3: linear-gradient(135deg, #ffb38a 0%, #508cff 100%);
+  --grad-4: linear-gradient(135deg, #ff9e6c 0%, #ff7a50 100%);
+  --grad-hero: linear-gradient(90deg, #ff7a50 0%, #ffb38a 100%);
 
   /* ---- Risk outline (critical cards) ---- */
-  --risk-outline: linear-gradient(135deg, rgba(255, 42, 141, 0.5), rgba(255, 138, 0, 0.2) 40%, rgba(255, 255, 255, 0.05) 100%);
+  --risk-outline: linear-gradient(135deg, rgba(255, 122, 80, 0.5), rgba(255, 158, 108, 0.25) 40%, rgba(255, 255, 255, 0.05) 100%);
+
+  /* ---- Focus halo (per spec: coral border + ambient exterior halo) ---- */
+  --focus-halo: 0 0 0 3px rgba(255, 122, 80, 0.15);
 }
 
 @theme inline {
@@ -85,6 +100,8 @@
   --color-muted-2: var(--muted-2);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-secondary: var(--secondary);
+  --color-tertiary: var(--tertiary);
   --color-risk-high: var(--risk-high);
   --color-risk-high-soft: var(--risk-high-soft);
   --color-risk-med: var(--risk-med);
@@ -101,10 +118,11 @@ body {
   color: var(--foreground);
   font-family: var(--font-jakarta), var(--font-inter), Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
-  /* Ambient backdrop: fuchsia top-right + violet bottom-left radial flares */
+  /* Subtle radiant atmosphere: a single soft coral+periwinkle wash. Kept faint
+     so depth reads from opaque surface tiers, not a site-wide glow. */
   background-image:
-    radial-gradient(circle at top right, rgba(255, 42, 141, 0.12), transparent 50%),
-    radial-gradient(circle at bottom left, rgba(123, 44, 191, 0.18), transparent 60%);
+    radial-gradient(circle at 85% 0%, rgba(255, 122, 80, 0.07), transparent 45%),
+    radial-gradient(circle at 10% 100%, rgba(80, 140, 255, 0.06), transparent 50%);
   background-attachment: fixed;
 }
 
@@ -130,18 +148,21 @@ samp {
   border-radius: 9999px;
 }
 
-/* ---- Glass elevation utilities ---- */
+/* ---- Glass elevation utilities ----
+   Per Obsidian Sunset spec: frosted backdrop blur + high-contrast top-edge
+   specularity highlight, hairline charcoal border. Floating overlays get a
+   deeper drop shadow with a 1px charcoal rim. */
 .glass {
   background: var(--surface-glass);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border);
   box-shadow: var(--shadow-glass);
 }
 .glass-strong {
   background: var(--surface-glass-strong);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
   border: 1px solid var(--border-strong);
   box-shadow: var(--shadow-float);
 }
