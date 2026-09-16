@@ -69,11 +69,15 @@
   --fraud-cloning: #a9c2ff; /* light periwinkle — cloning */
   --fraud-cloning-soft: rgba(169, 194, 255, 0.14);
 
-  /* ---- Glow & shadow (glass specularity + floating depth) ---- */
-  --glow-accent: 0 0 24px rgba(255, 122, 80, 0.28);
-  --glow-accent-hover: 0 0 30px rgba(255, 122, 80, 0.18);
-  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
-  --shadow-float: 0 12px 36px -4px rgba(0, 0, 0, 0.65), 0 0 0 1px #2a2a36;
+  /* ---- Shadow & depth (opaque surface-tier contrast, NOT glow) ----
+     Per Obsidian Sunset: depth comes from surface luminosity tiers + a 1px
+     inset top-edge specularity highlight. Colored glow is rationed to ≤2
+     hero accents per view (active item, primary CTA), not applied broadly. */
+  --glow-accent: 0 0 0 1px rgba(255, 122, 80, 0.35); /* crisp coral rim, not a bloom */
+  --glow-accent-hover: 0 0 0 1px rgba(255, 122, 80, 0.5);
+  --shadow-glass: 0 1px 8px 0 rgba(0, 0, 0, 0.28), inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+  --shadow-float: 0 12px 36px -4px rgba(0, 0, 0, 0.55), 0 0 0 1px #2a2a36;
+  --shadow-card: 0 1px 8px rgba(0, 0, 0, 0.04); /* near-invisible neutral lift */
 
   /* ---- Gradients (dawn-to-sunset ramp) ---- */
   --grad-1: linear-gradient(135deg, #ff7a50 0%, #ff9e6c 100%);
