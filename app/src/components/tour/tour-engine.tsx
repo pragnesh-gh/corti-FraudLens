@@ -35,6 +35,7 @@ import {
   ScanLine,
   Scale,
   ShieldCheck,
+  History,
 } from "lucide-react";
 import type { TourCase } from "./tour-types";
 import { CodeCard, SeverityMeter, DeltaChip, ConfidenceGauge } from "./tour-widgets";
@@ -55,7 +56,10 @@ const STEP_RENDERERS: Record<string, (tc: TourCase, onReplay: () => void) => Rea
   // shows what our coding expert PREDICTED, then how the retrace agent REASONS
   // about each over-billed code — sourced from the real precomputed pipeline.
   predicted: (tc) => <PredictedStep tc={tc} />,
-  retrace: (tc) => <RetraceStep tc={tc} />,
+  // The history-dependent case gets a dedicated retrace step with the
+  // "Pull patient history" mind-change (Common → Wrong). Other cases use the
+  // standard retrace agent reasoning over the precomputed pipeline output.
+  retrace: (tc) => (tc.patientHistory ? <HistoryRetraceStep tc={tc} /> : <RetraceStep tc={tc} />),
   impact: (tc) => <ImpactStep tc={tc} />,
   verdict: (tc, onReplay) => <VerdictStep tc={tc} onReplay={onReplay} />,
 };
@@ -492,8 +496,32 @@ function PredictedStep({ tc }: { tc: TourCase }) {
   // The predicted codes come from the real precomputed pipeline (codes.predict
   // + the coding-expert agent). We bucket the per-code analyses to show the
   // set intersection: matched / over-billed / under-billed.
+  //
+  // History-dependent case (patientHistory set): the note is authored to be
+  // plausible, so a NOTE-ONLY expert AGREES with the bill — the doomed codes
+  // start in Common. We derive the buckets from tc.billedCodes + the note-only
+  // predicted set (tc.noteOnlyPredictedCodes) instead of the pipeline snapshot,
+  // because the mind-change (Common → Wrong) happens in the retrace step.
+  const isHistoryCase = !!tc.patientHistory && !!tc.noteOnlyPredictedCodes;
+  const notePredicted = useMemo(
+    () => new Set(tc.noteOnlyPredictedCodes ?? []),
+    [tc.noteOnlyPredictedCodes],
+  );
+
   const analyses = result?.code_analyses ?? [];
-  const { matched, overBilled, underBilled } = useMemo(() => bucketAnalyses(analyses), [analyses]);
+  const pipelineBuckets = useMemo(() => bucketAnalyses(analyses), [analyses]);
+
+  // For the history case, build buckets from billed vs note-only-predicted.
+  const historyBuckets = useMemo(() => {
+    if (!isHistoryCase) return null;
+    const matched = tc.billedCodes.filter((c) => notePredicted.has(c.code));
+    const overBilled = tc.billedCodes.filter((c) => !notePredicted.has(c.code));
+    return { matched: matched.map((c) => ({ code: c.code, description: c.description })), overBilled: overBilled.map((c) => ({ code: c.code, description: c.description })), underBilled: [] as { code: string; description: string }[] };
+  }, [isHistoryCase, tc.billedCodes, notePredicted]);
+
+  const matched = isHistoryCase ? historyBuckets!.matched : pipelineBuckets.matched;
+  const overBilled = isHistoryCase ? historyBuckets!.overBilled : pipelineBuckets.overBilled;
+  const underBilled = isHistoryCase ? historyBuckets!.underBilled : pipelineBuckets.underBilled;
 
   useEffect(() => {
     setRevealed(0);
@@ -822,6 +850,254 @@ function RetraceStep({ tc }: { tc: TourCase }) {
               {finding?.rationale && (
                 <p className="mt-3 text-sm leading-relaxed text-[var(--foreground)]">{finding.rationale}</p>
               )}
+            </div>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 5b — History retrace: the "Pull patient history" mind-change.
+// Only rendered for the history-dependent case (tc.patientHistory set).
+// The note-only compare put the doomed codes in Common (expert agreed). Here
+// the agent pulls the chart → the doomed codes transfer Common → Billed-only
+// (Wrong), animated, BEFORE the impossibility reasoning — because there is
+// nothing to reason about until a code becomes unmatched. See
+// docs/research-demo-categories.md §Category D + the "mind-change" flow.
+// ---------------------------------------------------------------------------
+
+function HistoryRetraceStep({ tc }: { tc: TourCase }) {
+  const history = tc.patientHistory;
+  const revoked = useMemo(() => new Set(tc.historyRevokedCodes ?? []), [tc.historyRevokedCodes]);
+  const notePredicted = useMemo(() => new Set(tc.noteOnlyPredictedCodes ?? []), [tc.noteOnlyPredictedCodes]);
+
+  // The bucket state. Pre-history: doomed codes are in Common (expert agreed
+  // with the bill). Post-history: revoked codes move to Billed-only (Wrong).
+  const [historyPulled, setHistoryPulled] = useState(false);
+  // 0 = nothing transferred yet; increments as each revoked code animates over.
+  const [transferred, setTransferred] = useState(0);
+  // Show the impossibility reasoning only after the transfer completes.
+  const [showReasoning, setShowReasoning] = useState(false);
+
+  const revokedCodes = useMemo(
+    () => tc.billedCodes.filter((c) => revoked.has(c.code)),
+    [tc.billedCodes, revoked],
+  );
+
+  const pullHistory = useCallback(() => {
+    if (historyPulled) return;
+    setHistoryPulled(true);
+    // Animate each revoked code transferring Common → Wrong, one by one.
+    revokedCodes.forEach((_, i) => {
+      setTimeout(() => setTransferred(i + 1), 500 + i * 650);
+    });
+    // After the last transfer lands, reveal the impossibility reasoning.
+    const totalMs = 500 + revokedCodes.length * 650 + 500;
+    setTimeout(() => setShowReasoning(true), totalMs);
+  }, [historyPulled, revokedCodes]);
+
+  if (!history) return null;
+
+  return (
+    <div className="space-y-4">
+      <Card className="overflow-hidden">
+        <CardHeader
+          title="The note alone can&rsquo;t resolve this — pull the patient history"
+          subtitle="The coding expert agreed with the bill from the note. The agent decides to verify against the chart."
+          right={
+            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">
+              <History className="h-3 w-3" /> history
+            </span>
+          }
+        />
+        <div className="p-5">
+          {/* The mind-change: two buckets, Common and Billed-only (Wrong). */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {/* Common bucket */}
+            <div
+              className={cn(
+                "rounded-lg border p-3 transition-colors",
+                historyPulled
+                  ? "border-[var(--risk-low)]/30 bg-[var(--risk-low-soft)]/40"
+                  : "border-[var(--risk-low)]/40 bg-[var(--risk-low-soft)]",
+              )}
+            >
+              <div className="mb-2 flex items-center gap-1.5">
+                <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--surface)] text-[var(--risk-low)]">
+                  <Check className="h-3 w-3" strokeWidth={2.5} />
+                </span>
+                <div>
+                  <div className="text-xs font-semibold text-[var(--risk-low)]">Common — expert agreed</div>
+                  <div className="text-[10px] text-[var(--muted)]">On both the bill and the note-only prediction</div>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {/* Pre-history: all note-predicted billed codes are here. */}
+                {/* Post-history: revoked codes animate OUT (fade) as they transfer. */}
+                {tc.billedCodes
+                  .filter((c) => notePredicted.has(c.code))
+                  .map((c) => {
+                    const isRevoked = revoked.has(c.code);
+                    const hasMoved = isRevoked && historyPulled && transferred > revokedCodes.indexOf(c);
+                    return (
+                      <div
+                        key={c.code}
+                        className={cn(
+                          "flex items-start gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1.5 transition-all duration-500",
+                          hasMoved && "translate-x-2 opacity-0",
+                        )}
+                      >
+                        <span className="font-mono text-xs font-bold text-[var(--risk-low)]">{c.code}</span>
+                        <span className="text-[11px] leading-tight text-[var(--muted)]">{c.description}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+
+            {/* Billed-only (Wrong) bucket — empty until history is pulled */}
+            <div
+              className={cn(
+                "rounded-lg border p-3 transition-colors",
+                historyPulled
+                  ? "border-[var(--risk-high)]/40 bg-[var(--risk-high-soft)]"
+                  : "border-dashed border-[var(--border)] bg-[var(--surface-2)]/40",
+              )}
+            >
+              <div className="mb-2 flex items-center gap-1.5">
+                <span className="flex h-5 w-5 items-center justify-center rounded-md bg-[var(--surface)] text-[var(--risk-high)]">
+                  <X className="h-3 w-3" strokeWidth={2.5} />
+                </span>
+                <div>
+                  <div className="text-xs font-semibold text-[var(--risk-high)]">Billed-only — wrong after history</div>
+                  <div className="text-[10px] text-[var(--muted)]">Revoked once the chart was pulled</div>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {revokedCodes.length === 0 && (
+                  <div className="rounded-md border border-dashed border-[var(--border)] bg-[var(--surface)]/60 px-2.5 py-2 text-[11px] text-[var(--muted-2)]">
+                    Pull the history to investigate.
+                  </div>
+                )}
+                {revokedCodes.map((c, i) => {
+                  const hasMoved = historyPulled && transferred > i;
+                  return hasMoved ? (
+                    <div
+                      key={c.code}
+                      className="tour-slide-over flex items-start gap-2 rounded-md border border-[var(--risk-high)]/30 bg-[var(--surface)] px-2.5 py-1.5"
+                    >
+                      <span className="font-mono text-xs font-bold text-[var(--risk-high)]">{c.code}</span>
+                      <span className="text-[11px] leading-tight text-[var(--muted)]">{c.description}</span>
+                    </div>
+                  ) : (
+                    <div
+                      key={c.code}
+                      className="h-[34px] rounded-md border border-dashed border-[var(--border)] bg-[var(--surface)]/40"
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* The Pull patient history action + reveal panel */}
+          {!historyPulled ? (
+            <div className="mt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-[var(--foreground)]">
+                The note describes a credible left-foot ulcer. Before judging, the agent pulls the
+                patient&rsquo;s history to verify the procedure is even possible.
+              </p>
+              <button
+                onClick={pullHistory}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--accent)] bg-[var(--accent)] px-3.5 py-2 text-xs font-semibold text-white transition hover:opacity-90"
+              >
+                <History className="h-3.5 w-3.5" /> Pull patient history
+              </button>
+            </div>
+          ) : (
+            <div className="animate-fade-rise mt-4 rounded-lg border border-[var(--fraud-phantom)]/30 bg-[var(--fraud-phantom-soft)] p-4">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[var(--surface)] text-[var(--fraud-phantom)]">
+                  <History className="h-3.5 w-3.5" />
+                </span>
+                <span className="text-xs font-bold uppercase tracking-wide text-[var(--fraud-phantom)]">
+                  Patient history
+                </span>
+              </div>
+              <p className="text-sm font-medium text-[var(--foreground)]">{history.summary}</p>
+              <ul className="mt-2 space-y-1">
+                {history.facts.map((f, i) => (
+                  <li
+                    key={i}
+                    className="animate-fade-rise flex items-start gap-2 text-xs text-[var(--muted)]"
+                    style={{ animationDelay: `${i * 90}ms` }}
+                  >
+                    <span className="mt-1 h-1 w-1 flex-none rounded-full bg-[var(--fraud-phantom)]" />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* The impossibility reasoning — only after the bucket transfer completes. */}
+      {showReasoning && (
+        <div className="animate-fade-rise space-y-4">
+          <Card className="overflow-hidden">
+            <CardHeader
+              title="Why the codes are impossible"
+              subtitle="The agent reasons about the revoked codes against the history."
+              right={
+                <span className="inline-flex items-center gap-1 rounded-full border border-[var(--risk-high)]/30 bg-[var(--risk-high-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--risk-high)]">
+                  <BrainCircuit className="h-3 w-3" /> reasoning
+                </span>
+              }
+            />
+            <div className="space-y-3 p-5">
+              <div className="flex items-start gap-2.5 rounded-lg border border-[var(--risk-high)]/25 bg-[var(--risk-high-soft)]/60 px-4 py-3">
+                <Microscope className="mt-0.5 h-4 w-4 flex-none text-[var(--risk-high)]" />
+                <p className="text-sm leading-relaxed text-[var(--foreground)]">{tc.proofHeadline}</p>
+              </div>
+              <p className="text-sm leading-relaxed text-[var(--foreground)]">{tc.proofBody}</p>
+
+              {/* Per-revoked-code flag reasons */}
+              <div className="space-y-2">
+                {revokedCodes.map((c) => (
+                  <div
+                    key={c.code}
+                    className="flex items-start gap-2 rounded-lg border border-[var(--risk-high)]/30 bg-[var(--surface)] px-3 py-2.5"
+                  >
+                    <span className="mt-0.5 flex h-5 w-5 flex-none items-center justify-center rounded-md bg-[var(--risk-high-soft)] text-[var(--risk-high)]">
+                      <X className="h-3 w-3" />
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm font-bold text-[var(--risk-high)]">{c.code}</span>
+                        <span className="text-xs text-[var(--muted)]">{c.description}</span>
+                      </div>
+                      {c.flagReason && (
+                        <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">{c.flagReason}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Verdict chip */}
+              <div
+                className="flex items-center gap-2 rounded-lg border px-4 py-3"
+                style={{ borderColor: `${tc.accentColor}30`, background: tc.accentSoft }}
+              >
+                <Gavel className="h-4 w-4 flex-none" style={{ color: tc.accentColor }} />
+                <span className="text-sm font-medium text-[var(--foreground)]">
+                  Verdict: <span className="font-semibold" style={{ color: tc.accentColor }}>Phantom / services not rendered</span> — the
+                  billed left-foot debridement is anatomically impossible on this patient.
+                </span>
+              </div>
             </div>
           </Card>
         </div>

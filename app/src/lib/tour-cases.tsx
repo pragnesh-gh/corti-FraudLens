@@ -912,6 +912,10 @@ const HISTORY_012: TourCase = {
       "Medications: metformin, gabapentin, lisinopril",
     ],
   },
+  // Note-only expert AGREES with the bill (note is plausible) → doomed codes
+  // start in Common. On history pull, L97.523 + 97597 are revoked → Billed-only.
+  noteOnlyPredictedCodes: ["E11.42", "L97.523", "97597"],
+  historyRevokedCodes: ["L97.523", "97597"],
   correctCodes: [
     { code: "E11.42", description: "Type 2 diabetes mellitus with diabetic polyneuropathy", fraudulent: false },
     { code: "Z89.512", description: "Acquired absence of left leg below knee", fraudulent: false },

@@ -131,6 +131,22 @@ export interface TourCase {
     facts: string[];
   };
   /**
+   * The codes a NOTE-ONLY coding expert predicts (before any history pull).
+   * Only the history-dependent case sets this: because the note is authored to
+   * be plausible, the expert AGREES with the bill on the note-only pass, so the
+   * doomed codes start in Common. On the history pull, the codes listed in
+   * `historyRevokedCodes` are revoked → they transfer Common → Billed-only/Wrong.
+   * When absent, the predicted set is derived from correctCodes (the normal
+   * note-only cases where the expert does NOT agree with the fraud).
+   */
+  noteOnlyPredictedCodes?: string[];
+  /**
+   * The billed codes the expert REVOKES once patient history is pulled (the
+   * mind-change). Only the history-dependent case sets this. Each must also
+   * appear in noteOnlyPredictedCodes (it starts in Common) and in billedCodes.
+   */
+  historyRevokedCodes?: string[];
+  /**
    * True for the cases chosen for the 8-min presentation. The Live Demos hub
    * shows a "Demo" badge on these and can sort/filter to surface them first.
    * See docs/research-demo-categories.md + memory fraudlens-demo-presentation.

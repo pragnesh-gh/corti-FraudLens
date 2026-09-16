@@ -1,0 +1,82 @@
+{
+  "case_id": "case_history_012",
+  "fraud_type": "phantom",
+  "predicted_codes": {
+    "procedures": ["97597"],
+    "dx": ["E11.42", "L97.523"]
+  },
+  "analyses": [
+    {
+      "code": "E11.42",
+      "description": "Type 2 diabetes mellitus with diabetic polyneuropathy",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [],
+      "confidence": 0.95
+    },
+    {
+      "code": "L97.523",
+      "description": "Non-pressure chronic ulcer of other part of left foot with necrosis of muscle",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [],
+      "confidence": 0.9,
+      "rationale": "From the note alone, L97.523 is defensible — the note documents a 2.5 cm plantar left-foot ulcer with necrotic tissue. The coding expert agreed with the bill on the note-only pass.",
+      "historyContradiction": {
+        "flag": true,
+        "detail": "Patient history (Z89.512) records a prior left below-knee amputation in 2023 — the left foot does not exist. A left-foot ulcer cannot be present or debrided. The code is anatomically impossible once the chart is verified."
+      }
+    },
+    {
+      "code": "97597",
+      "description": "Active wound care management (debridement), total wound surface area 20 sq cm or less",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [],
+      "confidence": 0.9,
+      "rationale": "From the note alone, the debridement is defensible — the note documents sharp debridement of necrotic tissue. But the service is anatomically impossible once the patient's prior left below-knee amputation (Z89.512) is verified.",
+      "historyContradiction": {
+        "flag": true,
+        "detail": "Debridement billed for a left-foot ulcer that cannot exist on a patient with a prior left below-knee amputation (Z89.512, 2023). The service was not — and could not be — rendered."
+      }
+    }
+  ],
+  "finding": {
+    "fraudType": "phantom",
+    "verdict": "fraud",
+    "confidence": 0.92,
+    "summary": "The note alone describes a credible left-foot ulcer debridement, and the coding expert agreed with the bill on the note-only pass. Extended chart verification revealed a prior left below-knee amputation (Z89.512, 2023) — the left foot does not exist. The billed left-foot ulcer (L97.523) and debridement (97597) are anatomically impossible: a phantom service caught only by pulling the patient history.",
+    "details": [
+      {
+        "code": "E11.42",
+        "status": "supported",
+        "evidence": "History and assessment document Type 2 diabetes with diabetic neuropathy; continued metformin and gabapentin."
+      },
+      {
+        "code": "L97.523",
+        "status": "history_contradicted",
+        "evidence": "History (Z89.512) records a prior left below-knee amputation in 2023. The left foot does not exist, so a left-foot ulcer cannot be present or debrided."
+      },
+      {
+        "code": "97597",
+        "status": "history_contradicted",
+        "evidence": "Debridement billed for a left-foot ulcer that cannot exist on a patient with a prior left below-knee amputation. The service could not have been rendered."
+      },
+      {
+        "finding": "pattern",
+        "status": "phantom",
+        "evidence": "A service billed that is anatomically impossible given the patient's history — the history-dependent analogue of services not rendered, caught only by extended chart verification."
+      }
+    ]
+  },
+  "legal_brief": "The documented encounter describes a left-foot diabetic ulcer with sharp debridement. The coding expert agreed with the billed codes (L97.523, 97597) on the note-only pass. Extended chart verification revealed a prior left below-knee amputation (Z89.512) performed in 2023 — the left foot does not exist. The billed left-foot ulcer and debridement are anatomically impossible and could not have been rendered. Fraud type: phantom (services not rendered). Verdict: fraud.\n\n",
+  "source": "live",
+  "detected": true,
+  "precomputed_at": "2026-09-16T08:30:00.000Z"
+}
