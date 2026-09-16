@@ -37,6 +37,8 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-theme="dark"
+      suppressHydrationWarning
       className={`${jakarta.variable} ${inter.variable} ${jetbrains.variable} h-full antialiased`}
     >
       <head>
