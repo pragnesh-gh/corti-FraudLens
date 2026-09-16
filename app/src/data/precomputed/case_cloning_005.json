@@ -1,0 +1,78 @@
+{
+  "case_id": "case_cloning_005",
+  "fraud_type": "cloning",
+  "predicted_codes": {
+    "procedures": [
+      "G8754",
+      "G8752",
+      "99213",
+      "1159F",
+      "99212"
+    ],
+    "dx": [
+      "I10"
+    ]
+  },
+  "analyses": [
+    {
+      "code": "I10",
+      "description": "Essential (primary) hypertension",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [],
+      "confidence": 0.95
+    },
+    {
+      "code": "99214",
+      "description": "Office visit, established patient, high complexity",
+      "predicted": false,
+      "match": "extra",
+      "agreeability": 1,
+      "grounding": "contradicted",
+      "noteExcerpts": [
+        "CC: Routine follow-up.",
+        "reports doing well... No new complaints.",
+        "Assessment/Plan: 1. Essential hypertension, well-controlled - continue amlodipine, recheck in 6 months."
+      ],
+      "confidence": 0.7,
+      "rationale": "99214 as described here (established office visit, high complexity) is not defensible from this note. The documentation shows a routine follow-up with one stable chronic condition (essential hypertension) that is well controlled, no new complaints, reassuring review/history, limited straightforward exam findings, and a simple plan to continue amlodipine and recheck in 6 months. There is no documented high-complexity medical decision-making, no multiple unstable problems, no significant data review/interpretation, and no high-risk management evident in the note."
+    }
+  ],
+  "finding": {
+    "fraudType": "upcoding",
+    "verdict": "fraud",
+    "confidence": 0.96,
+    "summary": "The billed E/M code 99214 is not supported by the documented encounter, which reflects a routine, stable hypertension follow-up consistent with a lower-level established patient visit.",
+    "details": [
+      {
+        "code": "99214",
+        "issue": "unsupported_level",
+        "finding": "The retrace marks 99214 as contradicted, and the note documents a brief routine follow-up for well-controlled hypertension with no new complaints, normal exam, and simple medication continuation.",
+        "supported_by_note": [
+          "single stable chronic condition: essential hypertension, well-controlled",
+          "no new symptoms or complaints",
+          "limited straightforward exam findings",
+          "plan is continue amlodipine and recheck in 6 months"
+        ],
+        "more_supported_code": "99212 or 99213"
+      },
+      {
+        "code": "I10",
+        "issue": "supported_diagnosis",
+        "finding": "Essential hypertension is explicitly documented and assessed as well-controlled.",
+        "impact": "Diagnosis billing itself does not suggest diagnosis inflation."
+      },
+      {
+        "code": "G8754/G8752/1159F",
+        "issue": "missing_not_billed",
+        "finding": "These predicted quality/reporting codes may be supportable from the note, but absence of these codes is not evidence of fraud in this classification."
+      }
+    ]
+  },
+  "legal_brief": "\n\nThe encounter documented essential hypertension as well controlled, with continuation of amlodipine and follow-up in 6 months. The claim was billed with diagnosis code I10 and E/M code 99214. The discrepancy identified was upcoding, with a fraud verdict. The billed E/M code 99214 was not supported by the documented encounter, which was described as a routine, stable hypertension follow-up consistent with a lower-level established patient visit.",
+  "source": "live",
+  "detected": false,
+  "precomputed_at": "2026-09-16T05:04:30.936Z"
+}

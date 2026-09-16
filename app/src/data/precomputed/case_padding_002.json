@@ -1,0 +1,92 @@
+{
+  "case_id": "case_padding_002",
+  "fraud_type": "diagnosis_padding",
+  "predicted_codes": {
+    "procedures": [
+      "G0439"
+    ],
+    "dx": [
+      "I10"
+    ]
+  },
+  "analyses": [
+    {
+      "code": "I10",
+      "description": "Essential (primary) hypertension",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [],
+      "confidence": 0.95
+    },
+    {
+      "code": "Z00.00",
+      "description": "Encounter for general adult medical exam without abnormal findings",
+      "predicted": false,
+      "match": "extra",
+      "agreeability": 1,
+      "grounding": "contradicted",
+      "noteExcerpts": [
+        "CC: Annual wellness visit.",
+        "68yo male presents for Medicare annual wellness visit.",
+        "Assessment/Plan: 1. Essential hypertension, well-controlled - continue lisinopril.",
+        "Assessment/Plan: 2. Medicare annual wellness visit completed, no new concerns."
+      ],
+      "confidence": 0.7,
+      "rationale": "Z00.00 is not well supported because the note documents an annual wellness visit/Medicare annual wellness visit rather than a routine general adult medical exam, and it also includes an active chronic condition (essential hypertension) that is assessed and managed with continuation of lisinopril. In addition, the code descriptor requires 'without abnormal findings,' but hypertension is a documented ongoing diagnosis, making this a poor fit for the billed code based on the note alone."
+    },
+    {
+      "code": "N18.3",
+      "description": "Chronic kidney disease, stage 3 (moderate)",
+      "predicted": false,
+      "match": "extra",
+      "agreeability": 0,
+      "grounding": "unsupported",
+      "noteExcerpts": [
+        "Assessment/Plan:\n1. Essential hypertension, well-controlled - continue lisinopril.",
+        "2. Medicare annual wellness visit completed, no new concerns.",
+        "Denies chest pain, dyspnea, cough, edema, or urinary symptoms."
+      ],
+      "confidence": 0.7,
+      "rationale": "N18.3 is not defensible from this note. The assessment and plan document only essential hypertension and completion of an annual wellness visit. There is no mention of chronic kidney disease, renal insufficiency, reduced kidney function, CKD staging, abnormal creatinine/eGFR values, nephrology history, or any kidney-related assessment. The note also states no urinary symptoms. Based on the documented content alone, the billed CKD stage 3 code is unsupported."
+    }
+  ],
+  "finding": {
+    "fraudType": "dx_inflation",
+    "verdict": "fraud",
+    "confidence": 0.94,
+    "summary": "The documented encounter supports an annual wellness visit and essential hypertension, but billed diagnoses include two unsupported/contradicted diagnoses, indicating diagnosis inflation.",
+    "details": [
+      {
+        "code": "I10",
+        "status": "supported",
+        "evidence": "Assessment documents essential hypertension, well-controlled, and continuation of lisinopril."
+      },
+      {
+        "code": "Z00.00",
+        "status": "contradicted",
+        "evidence": "The encounter is specifically a Medicare annual wellness visit, which aligns with G0439 rather than a general adult routine exam diagnosis pairing as billed in the retrace provided."
+      },
+      {
+        "code": "N18.3",
+        "status": "unsupported",
+        "evidence": "The note contains no chronic kidney disease history, renal assessment, labs, or kidney-related symptoms."
+      },
+      {
+        "code": "G0439",
+        "status": "supported_predicted",
+        "evidence": "Chief complaint and assessment explicitly document a Medicare annual wellness visit completed."
+      },
+      {
+        "finding": "pattern",
+        "status": "dx_inflation",
+        "evidence": "Extra billed diagnoses appear to increase coded complexity without documentation support; this is not primarily a procedure upcoding, unbundling, phantom billing, or cloning pattern."
+      }
+    ]
+  },
+  "legal_brief": "The documented encounter supports a Medicare annual wellness visit and essential hypertension. Billed diagnoses were I10, Z00.00, and N18.3. The billed diagnoses included two unsupported or contradicted diagnoses, constituting diagnosis inflation. Fraud type: dx_inflation. Verdict: fraud.\n\n",
+  "source": "live",
+  "detected": true,
+  "precomputed_at": "2026-09-16T05:03:04.930Z"
+}

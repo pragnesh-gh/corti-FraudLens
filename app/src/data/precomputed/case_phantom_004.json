@@ -1,0 +1,69 @@
+{
+  "case_id": "case_phantom_004",
+  "fraud_type": "phantom",
+  "predicted_codes": {
+    "procedures": [
+      "99213",
+      "1036F"
+    ],
+    "dx": [
+      "J20.9",
+      "R05.1"
+    ]
+  },
+  "analyses": [
+    {
+      "code": "J20.9",
+      "description": "Acute bronchitis, unspecified",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [],
+      "confidence": 0.95
+    },
+    {
+      "code": "93000",
+      "description": "Electrocardiogram, complete, tracing and interpretation",
+      "predicted": false,
+      "match": "extra",
+      "agreeability": 0,
+      "grounding": "contradicted",
+      "noteExcerpts": [
+        "Denies chest pain or palpitations.",
+        "Assessment/Plan: Acute bronchitis. Symptomatic care, fluids, return if worsening. No cardiac workup indicated or performed."
+      ],
+      "confidence": 0.7,
+      "rationale": "Code 93000 requires that a complete ECG be performed with tracing and interpretation. The note does not document an ECG order, performance, tracing, findings, or interpretation. It instead explicitly states that no cardiac workup was indicated or performed, which argues against billing this code."
+    }
+  ],
+  "finding": {
+    "fraudType": "phantom",
+    "verdict": "fraud",
+    "confidence": 0.97,
+    "summary": "Claim includes an ECG (93000) that is not supported by the encounter documentation and is explicitly contradicted by the note and retrace.",
+    "details": [
+      {
+        "code": "93000",
+        "issue": "Procedure not documented",
+        "evidence": "Note documents cough/acute bronchitis visit with no chest pain, palpitations, dyspnea, or cardiac workup; assessment states no cardiac workup indicated or performed.",
+        "retrace": {
+          "agreeability": 0,
+          "grounding": "contradicted"
+        }
+      },
+      {
+        "code": "J20.9",
+        "issue": "Diagnosis supported",
+        "evidence": "Assessment lists acute bronchitis, matching billed diagnosis J20.9."
+      },
+      {
+        "comparison": "Predicted codes 99213 and 1036F do not support billing 93000; this pattern is more consistent with a non-performed service than with upcoding or unbundling."
+      }
+    ]
+  },
+  "legal_brief": "The claim billed J20.9 and 93000. No cardiac workup was indicated or performed. The billed ECG (93000) is not supported by the encounter documentation and is explicitly contradicted by the note and retrace. Fraud type: phantom. Verdict: fraud.\n\nPotential FCA exposure may be present if the claim submitted included CPT 93000 despite documentation stating that no cardiac workup was indicated or performed. The billed ECG is described as not supported by the encounter documentation and as explicitly contradicted by the note and retrace. This is characterized in the source material as phantom billing and fraud. However, based on the provided material, the support is for a documentation-claim mismatch; coding discrepancy alone would not, by itself, establish scienter.",
+  "source": "live",
+  "detected": true,
+  "precomputed_at": "2026-09-16T05:04:08.370Z"
+}

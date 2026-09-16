@@ -1,0 +1,76 @@
+{
+  "case_id": "case_unbundling_003",
+  "fraud_type": "unbundling",
+  "predicted_codes": {
+    "procedures": [
+      "93000"
+    ],
+    "dx": [
+      "Z01.810",
+      "I10"
+    ]
+  },
+  "analyses": [
+    {
+      "code": "I10",
+      "description": "Essential (primary) hypertension",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [],
+      "confidence": 0.95
+    },
+    {
+      "code": "93000",
+      "description": "Electrocardiogram, complete, tracing and interpretation",
+      "predicted": true,
+      "match": "exact",
+      "agreeability": 100,
+      "grounding": "supported",
+      "noteExcerpts": [],
+      "confidence": 0.95
+    },
+    {
+      "code": "93005",
+      "description": "Electrocardiogram, tracing only (technical component)",
+      "predicted": false,
+      "match": "extra",
+      "agreeability": 1,
+      "grounding": "supported",
+      "noteExcerpts": [
+        "referred for ECG prior to elective cholecystectomy",
+        "Assessment/Plan: 12-lead ECG performed, normal sinus rhythm, no acute ischemic changes."
+      ],
+      "confidence": 0.7,
+      "rationale": "The note explicitly documents that a 12-lead ECG was performed as part of pre-operative cardiac clearance, with findings reported (normal sinus rhythm, no acute ischemic changes). That supports billing for an electrocardiographic tracing having been obtained. However, the note does not clearly separate technical vs professional components, so support is strong for ECG performance generally but slightly less specific for the technical-component-only designation of 93005."
+    }
+  ],
+  "finding": {
+    "fraudType": "unbundling",
+    "verdict": "fraud",
+    "confidence": 0.98,
+    "summary": "The claim bills both 93000 and 93005 for the same ECG service documented as a single 12-lead ECG, which is consistent with unbundling rather than separate medically necessary services.",
+    "details": [
+      {
+        "code": "93000",
+        "assessment": "supported",
+        "rationale": "The note documents a 12-lead ECG performed and interpreted for pre-op cardiac clearance."
+      },
+      {
+        "code": "93005",
+        "assessment": "supported_but_overlaps",
+        "rationale": "The tracing component is part of the same single ECG service already captured by 93000; billing both together indicates component unbundling."
+      },
+      {
+        "diagnosis": "I10",
+        "assessment": "supported",
+        "rationale": "Hypertension is explicitly documented as well-controlled on losartan."
+      }
+    ]
+  },
+  "legal_brief": "A single 12-lead ECG was documented, showing normal sinus rhythm with no acute ischemic changes. The claim billed both 93000 and 93005 for that same ECG service. Fraud type was identified as unbundling, with verdict listed as fraud.\n\n",
+  "source": "live",
+  "detected": true,
+  "precomputed_at": "2026-09-16T05:03:46.566Z"
+}

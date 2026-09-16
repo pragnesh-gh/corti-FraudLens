@@ -1,0 +1,50 @@
+{
+  "case_id": "case_upcoding_001",
+  "fraud_type": "upcoding",
+  "predicted_codes": {
+    "procedures": [
+      "G8754",
+      "G8752"
+    ],
+    "dx": [
+      "I10"
+    ]
+  },
+  "analyses": [
+    {
+      "code": "I11.9",
+      "description": "Hypertensive heart disease without heart failure",
+      "predicted": false,
+      "match": "extra",
+      "agreeability": 1,
+      "grounding": "contradicted",
+      "noteExcerpts": [
+        "Assessment/Plan: 1. Essential hypertension, well-controlled - continue amlodipine, recheck in 6 months.",
+        "Denies chest pain, dyspnea, palpitations, leg swelling, or headache.",
+        "Heart: regular rate and rhythm, no murmurs, no S3/S4.",
+        "No peripheral edema. No JVD."
+      ],
+      "confidence": 0.7,
+      "rationale": "The note documents uncomplicated essential hypertension, not hypertensive heart disease. The assessment explicitly states 'Essential hypertension, well-controlled.' Cardiac review of systems and exam are negative for manifestations that would help support heart disease: the patient denies chest pain, dyspnea, palpitations, and leg swelling; exam shows regular rhythm, no murmurs, no S3/S4, no JVD, and no peripheral edema. There is no documented diagnosis of hypertensive heart disease, cardiomegaly, LVH, ischemic heart disease, or heart failure. Based on this note alone, billing I11.9 is not defensible."
+    }
+  ],
+  "finding": {
+    "fraudType": "dx_inflation",
+    "verdict": "fraud",
+    "confidence": 0.98,
+    "summary": "Billed diagnosis I11.9 (hypertensive heart disease without heart failure) is not supported by the note, which documents only uncomplicated essential hypertension and explicitly lacks cardiac findings.",
+    "details": [
+      {
+        "code": "I11.9",
+        "issue": "unsupported diagnosis",
+        "evidence_for_billing": "Claim billed with I11.9.",
+        "evidence_against_billing": "Note states follow-up for hypertension; assessment says 'Essential hypertension, well-controlled.' Exam shows regular rhythm, no murmurs, no S3/S4, no JVD, no peripheral edema, and patient denies chest pain, dyspnea, palpitations, and leg swelling.",
+        "rationale": "I11.9 requires hypertensive heart disease, but the documentation does not support heart disease. The more appropriate documented condition is uncomplicated hypertension, so this inflates diagnosis severity."
+      }
+    ]
+  },
+  "legal_brief": "\n\nThe note documents well-controlled essential hypertension with a plan to continue amlodipine and recheck in 6 months. The billed diagnosis was I11.9, hypertensive heart disease without heart failure. This billed diagnosis is not supported by the documented condition, which reflects uncomplicated essential hypertension and lacks cardiac findings. Fraud type: dx_inflation. Verdict: fraud.",
+  "source": "live",
+  "detected": false,
+  "precomputed_at": "2026-09-16T05:03:26.439Z"
+}

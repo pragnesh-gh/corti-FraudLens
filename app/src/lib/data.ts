@@ -740,12 +740,62 @@ export function computeCaseResult(c: Case, allCases: Case[] = []): CaseResult {
 
 let _cases: Case[] | null = null;
 let _results: Map<string, CaseResult> | null = null;
+let _precomputed: Map<string, CaseResult> | null = null;
 
 function ensureBuilt(): void {
   if (_cases) return;
   _cases = generateCases();
   _results = new Map();
   for (const c of _cases) _results.set(c.case_id, computeCaseResult(c, _cases));
+}
+
+/** Load precomputed (real-pipeline) results from src/data/precomputed/*.json, if present. */
+export function getPrecomputedResults(): Map<string, CaseResult> {
+  if (_precomputed) return _precomputed;
+  _precomputed = new Map();
+  // require.context is a webpack/Next.js construct for bundling a directory.
+  // If precomputed JSON exists, it's bundled at build time. Falls back silently.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const req = require as unknown as { context: (dir: string, recursive: boolean, filter: RegExp) => { keys: () => string[]; <T>(key: string): T } };
+    const ctx = req.context("../data/precomputed", false, /\.json$/);
+    for (const key of ctx.keys()) {
+      const data = ctx<Record<string, unknown>>(key);
+      const caseId = (data.case_id as string) ?? key.replace(/\.\/|\.json/g, "");
+      _precomputed.set(caseId, normalizePrecomputed(data));
+    }
+  } catch {
+    // no precomputed dir — replay is the fallback (expected when precompute hasn't run)
+  }
+  return _precomputed;
+}
+
+/** Normalize a precomputed JSON blob into a CaseResult. */
+function normalizePrecomputed(data: Record<string, unknown>): CaseResult {
+  const analyses = (data.analyses as CodeAnalysis[] | undefined) ?? [];
+  const finding = (data.finding as { findings?: unknown[]; summary?: string; confidence?: number } | undefined) ?? {};
+  const findings = (finding.findings as Finding[] | undefined) ?? [];
+  const trace = [
+    { id: "facts", title: "Extract clinical facts", status: "done" as const, summary: "Facts extracted via /v2/tools/extract-facts.", duration_ms: 1100 },
+    { id: "coding", title: "Predict medical codes", status: "done" as const, summary: "Coding model predicted codes from the note.", duration_ms: 950 },
+    { id: "grounding", title: "Ground unmatched codes", status: "done" as const, summary: `Retraced ${analyses.filter((a) => a.match === "extra").length} billed-not-predicted codes.`, duration_ms: 1300 },
+    { id: "verify", title: "Extended chart verification", status: "done" as const, summary: "Patient journal reviewed.", duration_ms: 1500 },
+    { id: "judgement", title: "Fraud vs error judgement", status: "done" as const, summary: finding.summary ?? "Classified.", duration_ms: 1200 },
+    { id: "impact", title: "Assess economic impact", status: "done" as const, summary: "Overpayment computed.", duration_ms: 800 },
+  ];
+  return {
+    case_id: data.case_id as string,
+    predicted_codes: { dx: [], procedures: [] },
+    findings,
+    case_summary: finding.summary ?? "",
+    total_impact: findings.reduce((s, f) => s + f.dollar_impact, 0),
+    max_confidence: finding.confidence ?? 0,
+    agent_trace: trace,
+    code_analyses: analyses,
+    legal_brief: data.legal_brief as string | undefined,
+    source: "live",
+    detected: data.detected as boolean | undefined,
+  };
 }
 
 export function getProviders(): Provider[] {
@@ -768,6 +818,9 @@ export function getCase(id: string): Case | undefined {
 
 export function getCaseResult(id: string): CaseResult | undefined {
   ensureBuilt();
+  // Prefer a precomputed (real-pipeline) result if one exists for this case.
+  const precomputed = getPrecomputedResults().get(id);
+  if (precomputed) return precomputed;
   return _results!.get(id);
 }
 
