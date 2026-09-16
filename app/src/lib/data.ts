@@ -9,6 +9,7 @@ import type {
   FraudType,
   ProviderAggregate,
   WorklistRow,
+  CodeAnalysis,
 } from "./types";
 import { EM_CODES, PROC_CODES, DX_CODES, NCCI_EDITS } from "./codes";
 
@@ -452,129 +453,267 @@ function generateCases(): Case[] {
   return cases;
 }
 
-// ---- Pipeline: deterministic finding generation (the "replay" engine) ----
-// This mimics what the agentic pipeline would produce. For the demo it's the cached truth.
+// ---- Pipeline: honest detection engine (the "replay" / offline fallback) ----
+// IMPORTANT: this derives findings from the NOTE TEXT and the billed codes —
+// never from `planted_fraud`. planted_fraud is the answer key only, used solely
+// to compute the `detected` honesty signal ("did we independently arrive at it?").
+// The live pipeline (pipeline.ts + lib/agents/*) replaces these heuristics with
+// real Corti calls; this module is the deterministic offline fallback.
 
-function emLevelValue(code: string): number {
-  return parseInt(code, 10);
+/** Map a note's documented MDM complexity to the E/M level it supports.
+ *  Analysis is keyword/phrase-based on the clinical note text — NOT planted_fraud. */
+function predictEmFromNote(c: Case): { code: string; confidence: number; evidence: string } {
+  const note = c.clinical_note.toLowerCase();
+  // MDM complexity signals (1995/97 E/M guidelines + 2021 MDM).
+  const highSignals = ["mdm high", "moderate risk of morbidity", "uncontrolled", "multiple data sources", "medication escalation", "severe", "escalation"];
+  const moderateSignals = ["mdm moderate", "one stable chronic and one acute", "adjusted one medication", "prescription drug management", "acute uncomplicated"];
+  const minimalSignals = ["mdm straightforward", "minimal data", "no medication changes", "stable chronic conditions", "self-limited"];
+  const score = (sigs: string[]) => sigs.reduce((n, s) => n + (note.includes(s) ? 1 : 0), 0);
+  const high = score(highSignals);
+  const moderate = score(moderateSignals);
+  const minimal = score(minimalSignals);
+  // Pick the level with the strongest signal; tie-break downward (conservative).
+  if (high > moderate && high > minimal) return { code: "99214", confidence: 0.78, evidence: "high-complexity MDM signals in note" };
+  if (moderate > minimal) return { code: "99213", confidence: 0.82, evidence: "moderate-complexity MDM signals in note" };
+  if (minimal > 0) return { code: "99212", confidence: 0.8, evidence: "minimal/straightforward MDM signals in note" };
+  return { code: "99213", confidence: 0.5, evidence: "default moderate (no strong MDM signal)" };
 }
 
-/** Predict the E/M level from the note's evidence span. */
-function predictEmFromNote(c: Case): string {
-  // The evidence span tells us the true MDM complexity.
-  const supported = c.evidence_spans.find((e) => e.code === c.submitted_codes.procedures[0]?.code);
-  if (!supported) return c.submitted_codes.procedures[0]?.code ?? "99213";
-  // Infer supported level from the planted fraud's expected_code if present, else the billed code.
-  if (c.planted_fraud?.expected_code && c.planted_fraud.type === "upcoding") {
-    return c.planted_fraud.expected_code;
-  }
-  return c.submitted_codes.procedures[0]?.code ?? "99213";
+/** Detect upcoding: billed E/M level exceeds what the note supports. */
+function detectUpcoding(c: Case, trace: AgentCard[]): Finding | null {
+  const billedEm = c.submitted_codes.procedures[0]?.code ?? "";
+  if (!billedEm.startsWith("992")) return null;
+  const supported = predictEmFromNote(c);
+  const billedVal = parseInt(billedEm, 10);
+  const supportedVal = parseInt(supported.code, 10);
+  if (billedVal <= supportedVal) return null; // billed at or below supported → no upcoding
+  const delta = EM_CODES[billedEm].charge - EM_CODES[supported.code].charge;
+  const span = c.evidence_spans.find((e) => e.code === billedEm) ?? null;
+  return {
+    code: billedEm,
+    fraud_type: "upcoding",
+    confidence: supported.confidence,
+    grounding_score: 0.2,
+    dollar_impact: delta,
+    rationale: `Billed ${billedEm} (${EM_CODES[billedEm].description.toLowerCase()}) but the note documents ${supported.evidence} — supports ${supported.code}.`,
+    evidence_spans: span ? [span] : [],
+    agent_trace: trace,
+    intent: "fraud",
+    analysis: {
+      code: billedEm,
+      description: EM_CODES[billedEm].description,
+      predicted: false,
+      match: "extra",
+      agreeability: 15,
+      grounding: "contradicted",
+      noteExcerpts: supported.evidence ? [supported.evidence] : [],
+      category: "upcoding",
+      verdict: "fraud",
+      confidence: supported.confidence,
+    },
+  };
 }
 
-function makeAgentTrace(c: Case): AgentCard[] {
-  return [
-    { id: "facts", title: "Extract clinical facts", status: "done", summary: "MDM complexity, conditions, and procedures parsed from note.", duration_ms: 1100 },
-    { id: "coding", title: "Predict medical codes", status: "done", summary: `Note supports E/M ${predictEmFromNote(c)} and listed procedures.`, duration_ms: 950 },
-    { id: "grounding", title: "Ground unmatched codes", status: "done", summary: "Compared submitted vs predicted codes against note evidence.", duration_ms: 1300 },
-    { id: "verify", title: "Extended chart verification", status: "done", summary: "Reviewed patient journal for supporting history.", duration_ms: 1500 },
-    { id: "judgement", title: "Fraud vs error judgement", status: "done", summary: c.planted_fraud ? `Classified as ${c.planted_fraud.severity}.` : "No anomalies found.", duration_ms: 1200 },
-    { id: "impact", title: "Assess economic impact", status: "done", summary: c.planted_fraud?.dollar_delta ? `Overpayment of $${c.planted_fraud.dollar_delta} on this claim.` : "No financial impact.", duration_ms: 800 },
-  ];
-}
-
-function computeFindings(c: Case): Finding[] {
-  const findings: Finding[] = [];
-  const trace = makeAgentTrace(c);
-
-  // Upcoding detection
-  if (c.planted_fraud?.type === "upcoding" && c.planted_fraud.expected_code && c.planted_fraud.submitted_code) {
-    const billed = c.planted_fraud.submitted_code;
-    const expected = c.planted_fraud.expected_code;
-    const delta = c.planted_fraud.dollar_delta ?? (EM_CODES[billed].charge - EM_CODES[expected].charge);
-    const freq = c.planted_fraud.severity === "fraud" ? 45 : 1; // villain pattern vs one-off
-    const penalty = c.planted_fraud.severity === "fraud" ? 2.5 : 1;
-    findings.push({
-      code: billed,
-      fraud_type: "upcoding",
-      confidence: c.planted_fraud.severity === "fraud" ? 0.92 : 0.61,
-      grounding_score: 0.18,
-      dollar_impact: Math.round(delta * freq * penalty),
-      rationale: `Billed ${billed} (${EM_CODES[billed].description.toLowerCase()}) but the note documents ${EM_CODES[expected].description.toLowerCase()}. The medical decision-making is ${expected === "99212" ? "minimal" : "moderate"} — not the very-high complexity ${billed} requires.`,
-      evidence_spans: c.evidence_spans.filter((e) => e.code === billed),
-      agent_trace: trace,
-      intent: c.planted_fraud.severity === "fraud" ? "fraud" : "error",
-    });
-  }
-
-  // Unbundling detection — check submitted procedures against NCCI edits
+/** Detect unbundling: NCCI edit pairs billed together. Pure code-set check. */
+function detectUnbundling(c: Case, trace: AgentCard[]): Finding[] {
   const submittedProcCodes = c.submitted_codes.procedures.map((p) => p.code);
+  const out: Finding[] = [];
   for (const edit of NCCI_EDITS) {
     if (submittedProcCodes.includes(edit.col1) && submittedProcCodes.includes(edit.col2)) {
-      const isFraud = c.planted_fraud?.severity === "fraud";
-      const penalty = isFraud ? 2.5 : 1;
-      const freq = isFraud ? 45 : 1;
-      findings.push({
+      out.push({
         code: `${edit.col1}+${edit.col2}`,
         fraud_type: "unbundling",
-        confidence: isFraud ? 0.88 : 0.55,
+        confidence: 0.86,
         grounding_score: 0.3,
-        dollar_impact: Math.round((PROC_CODES[edit.col2]?.charge ?? 85) * freq * penalty),
+        dollar_impact: PROC_CODES[edit.col2]?.charge ?? 85,
         rationale: edit.reason,
         evidence_spans: [],
         agent_trace: trace,
-        intent: isFraud ? "fraud" : "error",
+        intent: "fraud",
+        analysis: {
+          code: edit.col2,
+          description: PROC_CODES[edit.col2]?.description ?? edit.col2,
+          predicted: false,
+          match: "extra",
+          agreeability: 10,
+          grounding: "unsupported",
+          noteExcerpts: [],
+          category: "unbundling",
+          verdict: "fraud",
+          confidence: 0.86,
+        },
       });
     }
   }
+  return out;
+}
 
-  // Stubbed flags (lighter evidence)
-  if (c.planted_fraud?.type === "phantom") {
-    findings.push({
-      code: c.planted_fraud.submitted_code ?? "",
+/** Detect dx-inflation: a billed diagnosis code is never mentioned in the note. */
+function detectDxInflation(c: Case, trace: AgentCard[]): Finding | null {
+  const note = c.clinical_note.toLowerCase();
+  for (const dx of c.submitted_codes.dx) {
+    // Z00.00 (wellness) and common chronic dx are expected; check the higher-severity ones.
+    const desc = (DX_CODES[dx.code]?.description ?? dx.description).toLowerCase();
+    // Heuristic: if the diagnosis's key term isn't in the note at all, flag it.
+    const keyTerm = desc.split(/,| without| with /)[0].trim();
+    if (keyTerm && !note.includes(keyTerm) && !note.includes(dx.code.toLowerCase())) {
+      // Avoid false positives on common wellness/chronic codes the note may paraphrase.
+      if (["essential hypertension", "hyperlipidemia", "encounter for general"].some((t) => desc.includes(t))) continue;
+      return {
+        code: dx.code,
+        fraud_type: "dx_inflation",
+        confidence: 0.78,
+        grounding_score: 0.08,
+        dollar_impact: 90,
+        rationale: `Diagnosis ${dx.code} (${dx.description}) billed but never mentioned in the clinical note.`,
+        evidence_spans: [],
+        agent_trace: trace,
+        intent: "fraud",
+        analysis: {
+          code: dx.code,
+          description: dx.description,
+          predicted: false,
+          match: "extra",
+          agreeability: 8,
+          grounding: "unsupported",
+          noteExcerpts: [],
+          category: "dx_inflation",
+          verdict: "fraud",
+          confidence: 0.78,
+        },
+      };
+    }
+  }
+  return null;
+}
+
+/** Detect phantom billing: a procedure is billed but the note mentions neither
+ *  the procedure nor a relevant complaint. E.g. ECG billed with no cardiac mention. */
+function detectPhantom(c: Case, trace: AgentCard[]): Finding | null {
+  const note = c.clinical_note.toLowerCase();
+  const phantomHints: Record<string, string[]> = {
+    "93000": ["ecg", "ekg", "electrocardiogram", "cardiac", "chest pain", "palpitation", "arrhythmia", "atrial fibrillation"],
+    "80053": ["metabolic panel", "lab", "labs", "blood test", "chemistry"],
+    "85025": ["cbc", "blood count", "lab", "labs", "blood test", "anemia"],
+  };
+  for (const p of c.submitted_codes.procedures) {
+    const hints = phantomHints[p.code];
+    if (!hints) continue;
+    if (hints.some((h) => note.includes(h))) continue; // note supports it
+    return {
+      code: p.code,
       fraud_type: "phantom",
-      confidence: 0.84,
+      confidence: 0.82,
       grounding_score: 0.05,
-      dollar_impact: 175 * 45 * 2.5,
-      rationale: c.planted_fraud.detail,
+      dollar_impact: p.charge,
+      rationale: `Procedure ${p.code} (${p.description}) billed but the note documents no supporting complaint or service.`,
       evidence_spans: [],
       agent_trace: trace,
       intent: "fraud",
-    });
+      analysis: {
+        code: p.code,
+        description: p.description,
+        predicted: false,
+        match: "extra",
+        agreeability: 5,
+        grounding: "contradicted",
+        noteExcerpts: [],
+        category: "phantom",
+        verdict: "fraud",
+        confidence: 0.82,
+      },
+    };
   }
-  if (c.planted_fraud?.type === "dx_inflation") {
-    findings.push({
-      code: c.planted_fraud.submitted_code ?? "",
-      fraud_type: "dx_inflation",
-      confidence: 0.79,
-      grounding_score: 0.08,
-      dollar_impact: 90 * 45 * 2.5,
-      rationale: c.planted_fraud.detail,
-      evidence_spans: [],
-      agent_trace: trace,
-      intent: "fraud",
-    });
-  }
-  if (c.planted_fraud?.type === "cloning") {
-    findings.push({
-      code: c.planted_fraud.submitted_code ?? "",
-      fraud_type: "cloning",
-      confidence: 0.9,
-      grounding_score: 0.4,
-      dollar_impact: 100 * 5 * 2.5,
-      rationale: c.planted_fraud.detail,
-      evidence_spans: [],
-      agent_trace: trace,
-      intent: "fraud",
-    });
-  }
+  return null;
+}
 
+/** Detect cloning: the note is verbatim-identical to other cases in the dataset. */
+function detectCloning(allCases: Case[], c: Case, trace: AgentCard[]): Finding | null {
+  if (c.clinical_note.length < 80) return null;
+  const dupes = allCases.filter((o) => o.case_id !== c.case_id && o.clinical_note === c.clinical_note);
+  if (dupes.length < 2) return null;
+  return {
+    code: c.submitted_codes.procedures[0]?.code ?? "",
+    fraud_type: "cloning",
+    confidence: 0.88,
+    grounding_score: 0.4,
+    dollar_impact: 100,
+    rationale: `Clinical note is verbatim-identical to ${dupes.length} other encounters for different patients.`,
+    evidence_spans: [],
+    agent_trace: trace,
+    intent: "fraud",
+    analysis: {
+      code: c.submitted_codes.procedures[0]?.code ?? "",
+      description: c.submitted_codes.procedures[0]?.description ?? "",
+      predicted: true,
+      match: "exact",
+      agreeability: 12,
+      grounding: "weakly_supported",
+      noteExcerpts: [],
+      category: "cloning",
+      verdict: "fraud",
+      confidence: 0.88,
+    },
+  };
+}
+
+/** Set-intersection comparison: billed vs predicted codes. */
+function computeCodeAnalyses(c: Case, predictedEm: string): CodeAnalysis[] {
+  const submittedProc = c.submitted_codes.procedures;
+  const predictedSet = new Set([predictedEm, ...submittedProc.slice(1).map((p) => p.code)]);
+  return submittedProc.map((p) => {
+    const predicted = predictedSet.has(p.code);
+    return {
+      code: p.code,
+      description: p.description,
+      predicted,
+      match: predicted ? "exact" : "extra",
+      agreeability: predicted ? 100 : 20,
+      grounding: predicted ? "supported" : "unsupported",
+      noteExcerpts: [],
+      confidence: predicted ? 0.95 : 0.4,
+    };
+  });
+}
+
+function makeAgentTrace(c: Case, predictedEm: string): AgentCard[] {
+  return [
+    { id: "facts", title: "Extract clinical facts", status: "done", summary: "MDM complexity, conditions, and procedures parsed from note.", duration_ms: 1100 },
+    { id: "coding", title: "Predict medical codes", status: "done", summary: `Note supports E/M ${predictedEm} and listed procedures.`, duration_ms: 950 },
+    { id: "grounding", title: "Ground unmatched codes", status: "done", summary: "Compared submitted vs predicted codes against note evidence.", duration_ms: 1300 },
+    { id: "verify", title: "Extended chart verification", status: "done", summary: "Reviewed patient journal for supporting history.", duration_ms: 1500 },
+    { id: "judgement", title: "Fraud vs error judgement", status: "done", summary: "Classified findings into fraud categories.", duration_ms: 1200 },
+    { id: "impact", title: "Assess economic impact", status: "done", summary: "Computed overpayment from detected discrepancies.", duration_ms: 800 },
+  ];
+}
+
+/** Honest derivation of findings from the note + billed codes (NOT planted_fraud). */
+function computeFindings(allCases: Case[], c: Case, trace: AgentCard[], predictedEm: string): Finding[] {
+  const findings: Finding[] = [];
+  const up = detectUpcoding(c, trace);
+  if (up) findings.push(up);
+  findings.push(...detectUnbundling(c, trace));
+  const dx = detectDxInflation(c, trace);
+  if (dx) findings.push(dx);
+  const ph = detectPhantom(c, trace);
+  if (ph) findings.push(ph);
+  const cl = detectCloning(allCases, c, trace);
+  if (cl) findings.push(cl);
   return findings;
 }
 
-export function computeCaseResult(c: Case): CaseResult {
-  const findings = computeFindings(c);
-  const predictedEm = predictEmFromNote(c);
+export function computeCaseResult(c: Case, allCases: Case[] = []): CaseResult {
+  const siblings = allCases.length ? allCases : [c];
+  const predicted = predictEmFromNote(c);
+  const predictedEm = predicted.code;
+  const trace = makeAgentTrace(c, predictedEm);
+  const findings = computeFindings(siblings, c, trace, predictedEm);
   const total_impact = findings.reduce((s, f) => s + f.dollar_impact, 0);
+  const code_analyses = computeCodeAnalyses(c, predictedEm);
+  // Honesty signal: did the detector independently arrive at the planted fraud type?
+  const detected = c.planted_fraud
+    ? findings.some((f) => f.fraud_type === c.planted_fraud!.type) || (c.planted_fraud.type === "clean" && findings.length === 0)
+    : findings.length === 0;
   return {
     case_id: c.case_id,
     predicted_codes: {
@@ -590,7 +729,10 @@ export function computeCaseResult(c: Case): CaseResult {
       : "Codes align with the clinical note. No anomalies detected.",
     total_impact,
     max_confidence: findings.length ? Math.max(...findings.map((f) => f.confidence)) : 0,
-    agent_trace: makeAgentTrace(c),
+    agent_trace: trace,
+    code_analyses,
+    source: "replay",
+    detected,
   };
 }
 
@@ -603,7 +745,7 @@ function ensureBuilt(): void {
   if (_cases) return;
   _cases = generateCases();
   _results = new Map();
-  for (const c of _cases) _results.set(c.case_id, computeCaseResult(c));
+  for (const c of _cases) _results.set(c.case_id, computeCaseResult(c, _cases));
 }
 
 export function getProviders(): Provider[] {

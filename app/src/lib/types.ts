@@ -76,6 +76,10 @@ export interface Case {
   evidence_spans: EvidenceSpan[];
   billed_total: number;
   paid_total: number;
+  /** Optional structured patient history for chart-verification (amputation/contradiction cases). */
+  patient_profile?: PatientProfile;
+  /** Optional free-text prior chart summary for the extended-verification agent. */
+  prior_history?: string;
   /** Ground-truth label used by the generator and the demo; never shown as a raw field in the UI. */
   planted_fraud: {
     type: FraudType | "clean";
@@ -87,6 +91,21 @@ export interface Case {
   } | null;
 }
 
+/** Structured patient history for the extended chart-verification agent. */
+export interface PatientProfile {
+  patient_id: string;
+  name?: string;
+  date_of_birth?: string;
+  conditions: {
+    condition: string;
+    status: "active" | "resolved" | "amputated" | "removed" | "chronic";
+    date?: string;
+    notes?: string;
+  }[];
+  procedures: { procedure: string; date?: string; notes?: string }[];
+  medications: string[];
+}
+
 /** One step in the agent trace shown as a streaming card in the UI. */
 export interface AgentCard {
   id: string;
@@ -94,6 +113,31 @@ export interface AgentCard {
   status: AgentStatus;
   summary: string; // one-line outcome
   duration_ms: number; // simulated/real duration for pacing
+}
+
+/** Per-code retrace output from the grounding agent. */
+export interface CodeAnalysis {
+  /** The submitted (billed) code under scrutiny. */
+  code: string;
+  description: string;
+  /** Was it predicted by our coding expert? */
+  predicted: boolean;
+  /** Set-intersection verdict: exact (common), extra (billed-not-predicted → investigate), missing (predicted-not-billed), mismatch. */
+  match: "exact" | "extra" | "missing" | "mismatch";
+  /** Per-code defensibility from the retrace agent (0-100). High = minor miss; low = likely fraud. */
+  agreeability: number;
+  /** How well the note supports the code. */
+  grounding: "supported" | "weakly_supported" | "unsupported" | "contradicted";
+  /** Verbatim note excerpts the agent cited as evidence (char spans, when available). */
+  noteExcerpts: string[];
+  /** Optional history-contradiction flag from chart verification (e.g. amputation). */
+  historyContradiction?: { flag: boolean; detail: string };
+  /** Fraud category assigned to this code by the judgement agent. */
+  category?: FraudType;
+  /** Per-code verdict. */
+  verdict?: "fraud" | "error" | "clean";
+  /** Confidence 0-1. */
+  confidence: number;
 }
 
 /** A per-code finding produced by the agentic pipeline. */
@@ -108,6 +152,8 @@ export interface Finding {
   agent_trace: AgentCard[];
   /** "Likely Fraud" (intent) vs "Possible Error" (no intent pattern). */
   intent: "fraud" | "error";
+  /** Per-code retrace detail (agreeability, grounding, excerpts) — the crux output. */
+  analysis?: CodeAnalysis;
 }
 
 /** The pipeline output for a case (computed live or cached for replay). */
@@ -122,6 +168,14 @@ export interface CaseResult {
   total_impact: number; // sum of finding dollar_impact
   max_confidence: number;
   agent_trace: AgentCard[]; // case-level agent cards
+  /** Per-code analysis from the set-intersection + retrace. */
+  code_analyses?: CodeAnalysis[];
+  /** Generated legal/referral brief (Guided Docs textgen), first-class output. */
+  legal_brief?: string;
+  /** Live vs replay provenance. */
+  source?: "live" | "replay";
+  /** Honesty signal: did the detector independently arrive at the planted fraud type? */
+  detected?: boolean;
 }
 
 /** Provider-level aggregate for the pattern dashboard. */
