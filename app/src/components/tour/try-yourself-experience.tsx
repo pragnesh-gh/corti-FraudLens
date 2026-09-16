@@ -44,6 +44,9 @@ import {
   RotateCcw,
   BrainCircuit,
   ShieldCheck,
+  AlertTriangle,
+  FlaskConical,
+  BadgeCheck,
 } from "lucide-react";
 
 type Tab = "run" | "compare" | "investigate";
@@ -653,6 +656,31 @@ function InvestigateTab({
   const finding = result.findings[0];
   const detectorCategory = finding?.fraud_type;
   const detectorVerdict = finding?.analysis?.verdict ?? finding?.intent;
+  const isClean = !detectorCategory || detectorVerdict === "clean";
+  const confidence = result.max_confidence || finding?.confidence || 0;
+
+  // A computed verdict-facts grid — the Try-for-yourself equivalent of a tour
+  // case's hand-authored `verdictFacts`. Built entirely from the live result so
+  // it works for any pasted note (no TourCase available here).
+  const verdictFacts = [
+    { label: "Fraud type", value: detectorCategory ?? "None", icon: Gavel },
+    { label: "Verdict", value: isClean ? "Clean" : detectorVerdict === "fraud" ? "Likely fraud" : "Error", icon: isClean ? BadgeCheck : AlertTriangle },
+    { label: "Confidence", value: formatPct(confidence), icon: ScanSearch },
+    { label: "Dollar impact", value: formatUSD(result.total_impact || 0, true), icon: Receipt, money: true },
+  ];
+
+  // The case-level narrative — prefer the judgement agent's own summary, then
+  // the per-finding rationale, then a clean fallback. This is the reasoning that
+  // was missing before (the card only showed `finding.rationale`, which is empty
+  // for a custom note until a finding is built).
+  const verdictConclusion =
+    result.case_summary && !result.case_summary.startsWith("Codes align")
+      ? result.case_summary
+      : finding?.rationale
+        ? finding.rationale
+        : isClean
+          ? "The coding-expert found no codes unsupported by the note. The bill and the note agree."
+          : `${overBilled.length} billed code(s) not predicted by the note — see the retrace above for per-code evidence.`;
 
   // Legal brief — same wiring as the tour (deterministic, from case + findings).
   const legalBriefText = useMemo(() => {
@@ -698,21 +726,86 @@ function InvestigateTab({
       {/* Stage 1 — verdict (click-gated) */}
       {stage >= 1 && (
         <Card className="animate-fade-rise overflow-hidden">
-          <CardHeader title="Verdict" subtitle="The judgement agent's case-level finding." right={<Gavel className="h-4 w-4 text-[var(--accent)]" />} />
+          <CardHeader title="Verdict" subtitle="The judgement agent's case-level finding — and the full picture on one card." right={<Gavel className="h-4 w-4 text-[var(--accent)]" />} />
           <div className="p-5">
             <div className="flex flex-wrap items-center gap-3">
-              {detectorCategory && <FraudChip type={detectorCategory} />}
+              {/* Prefer the detector's actual category; fall back to "none". */}
+              {detectorCategory ? <FraudChip type={detectorCategory} /> : (
+                <span className="inline-flex items-center gap-1 rounded-md border border-[var(--risk-low)]/30 bg-[var(--risk-low-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--risk-low)]">
+                  <BadgeCheck className="h-3 w-3" /> No fraud type
+                </span>
+              )}
               <IntentBadge intent={detectorVerdict === "fraud" ? "fraud" : detectorVerdict === "error" ? "error" : "clean"} />
-              <span className="text-xs text-[var(--muted-2)]">
-                Confidence <span className="font-semibold text-[var(--foreground)]">{formatPct(result.max_confidence || finding?.confidence || 0)}</span>
-              </span>
+              <span className="font-mono text-xs text-[var(--muted)]">{result.case_id}</span>
               {typeof result.detected === "boolean" && (
-                <span className="ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold bg-[var(--risk-low-soft)] text-[var(--risk-low)]">
-                  <ShieldCheck className="h-3 w-3" /> {result.detected ? "Detector matched" : "Fraud caught"}
+                <span
+                  className={cn(
+                    "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                    result.detected
+                      ? "bg-[var(--risk-med-soft)] text-[var(--risk-med)]"
+                      : "bg-[var(--risk-low-soft)] text-[var(--risk-low)]",
+                  )}
+                  title={result.detected ? "The agent flagged an anomaly in this note" : "The bill aligns with the note — no anomaly"}
+                >
+                  <ShieldCheck className="h-3 w-3" />
+                  {result.detected ? "Anomaly flagged" : "Bill aligns"}
                 </span>
               )}
             </div>
-            {finding?.rationale && <p className="mt-3 text-sm leading-relaxed text-[var(--foreground)]">{finding.rationale}</p>}
+
+            {/* Computed 4-fact grid — the Try-for-yourself equivalent of a tour case's verdictFacts. */}
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {verdictFacts.map((s, i) => {
+                const SIcon = s.icon;
+                return (
+                  <div
+                    key={i}
+                    className="animate-fade-rise rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3"
+                    style={{ animationDelay: `${i * 100}ms` }}
+                  >
+                    <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-[var(--muted-2)]">
+                      <SIcon className="h-3.5 w-3.5" /> {s.label}
+                    </div>
+                    <div className={cn("mt-1 text-sm font-bold", s.money ? "text-[var(--risk-high)] tabular-nums" : "text-[var(--foreground)]")}>
+                      {s.value}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* The case-level reasoning — the narrative that was missing before. */}
+            <div
+              className={cn(
+                "mt-4 rounded-lg border px-4 py-3",
+                isClean
+                  ? "border-[var(--risk-low)]/30 bg-[var(--risk-low-soft)]/40"
+                  : "border-[var(--risk-med)]/30 bg-[var(--risk-med-soft)]/40",
+              )}
+            >
+              <div className="flex items-start gap-2">
+                {isClean ? (
+                  <BadgeCheck className="mt-0.5 h-4 w-4 flex-none text-[var(--risk-low)]" />
+                ) : (
+                  <FlaskConical className="mt-0.5 h-4 w-4 flex-none text-[var(--risk-med)]" />
+                )}
+                <p className="text-sm leading-relaxed text-[var(--foreground)]">{verdictConclusion}</p>
+              </div>
+            </div>
+
+            {/* Per-code rationale from the retrace, if the judgement built findings. */}
+            {result.findings.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {result.findings.map((f, i) => f.rationale && (
+                  <div key={i} className="flex items-start gap-2 rounded-md bg-[var(--surface-2)]/60 px-3 py-2">
+                    <BrainCircuit className="mt-0.5 h-3.5 w-3.5 flex-none text-[var(--accent)]" />
+                    <p className="text-xs leading-relaxed text-[var(--foreground)]">
+                      <span className="font-mono font-semibold">{f.code}</span> — {f.rationale}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </Card>
       )}

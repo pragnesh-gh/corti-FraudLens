@@ -393,9 +393,17 @@ export async function runLivePipeline(client: CortiClient, c: Case, cfg: Pipelin
   ];
 
   const total_impact = finding.findings.reduce((s, f) => s + f.dollar_impact, 0);
+  // `detected` is the honesty signal: did the detector independently land on the
+  // planted fraud? For a case WITH planted ground truth (tour/eval cases) we check
+  // the fraud-type match (or, for a planted-clean case, the absence of findings).
+  // For a CUSTOM note (no planted_fraud — Try-for-yourself) there is no ground
+  // truth to match, so `detected` just means "the agent found an anomaly": true
+  // when there are findings, false when the bill aligns with the note. (The prior
+  // code inverted this — `findings.length === 0` — which flagged a clean bill as
+  // caught fraud and a real finding as clean.)
   const detected = c.planted_fraud
     ? finding.findings.some((f) => f.fraud_type === c.planted_fraud!.type) || (c.planted_fraud.type === "clean" && finding.findings.length === 0)
-    : finding.findings.length === 0;
+    : finding.findings.length > 0;
 
   return {
     case_id: c.case_id,
