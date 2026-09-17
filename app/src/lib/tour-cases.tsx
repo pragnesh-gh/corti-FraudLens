@@ -1297,8 +1297,9 @@ const CLEAN_014: TourCase = {
   fraudType: "clean",
   billingModel: "fee_for_service",
   billingModelLabel: "Fee-for-service · per-code payment",
-  // demo: true intentionally NOT set — this is the contrast/clean case, not one
-  // of the 4 presentation fraud demos.
+  // demo: true — the contrast/clean case, promoted to Demo 5 alongside the
+  // four fraud demos. A legitimate 99214 the system clears (no fraud).
+  demo: true,
   teaser:
     "Chest-tightness workup billed 99214 + 93000 + 94060 — and the note supports every code. Moderate MDM, an ECG, before-and-after spirometry done right. A legitimate claim the system clears.",
   noteText:
@@ -1483,10 +1484,10 @@ export const TOUR_CASES: TourCase[] = [
   UNBUNDLING_003, // Demo 2 — unbundling (NCCI structural), precomputed mid
   HISTORY_012, // Demo 3 — impossible procedure (history-dependent), live finale
   DEPRESSION_PAD_013, // Demo 4 — resolved depression billed as active (risk-adjustment)
+  CLEAN_014, // Demo 5 — clean/contrast case: a legitimate 99214 the system clears (no fraud)
   UPCODING_001, // reserve — not in the presentation
   PHANTOM_004, // reserve
   CLONING_005, // reserve
-  CLEAN_014, // clean/contrast case — a legitimate 99214 the system clears (no fraud)
 ];
 
 const TOUR_CASE_MAP: Record<string, TourCase> = Object.fromEntries(
