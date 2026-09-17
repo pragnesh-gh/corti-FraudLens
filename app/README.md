@@ -1,4 +1,4 @@
-# Claim Check
+# corti-FraudLens
 
 A medical-coding fraud detector for the Corti Hack for Health. Feed it a
 clinical note and the codes a provider billed. A coding-expert agent predicts
@@ -7,7 +7,7 @@ investigates every discrepancy — citing the note, rating defensibility, and
 drafting a legal brief. Built on Corti's platform (text generation, medical
 coding, and the agentic framework).
 
-> Claim Check is **replay-first**: it runs end-to-end with **zero credentials**
+> corti-FraudLens is **replay-first**: it runs end-to-end with **zero credentials**
 > using precomputed results. Add Corti API keys and flip one env flag to run
 > the real agents live — the UI is identical either way.
 
@@ -92,7 +92,7 @@ To run the real Corti agents instead of replay:
 3. Restart `npm run dev`. The hub will show a **Live armed** badge, and runs
    now hit the real coding-expert, retrace, judgement, and legal-brief agents.
 
-If a live call fails or times out, Claim Check silently falls back to the
+If a live call fails or times out, corti-FraudLens silently falls back to the
 cached replay result — the demo never breaks.
 
 ---
