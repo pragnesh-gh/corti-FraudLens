@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FraudLens — Pitch Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,380;0,9..144,500;0,9..144,600;1,9..144,460;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0D1826;
+    --ink-2:#152439;
+    --ink-3:#1C2E47;
+    --paper:#EAE3D2;
+    --paper-dim:#C9C0A8;
+    --text:#F2ECDD;
+    --text-muted:#93A6BC;
+    --flag:#C1473C;
+    --flag-dim:#7A3630;
+    --flag-glow:rgba(193,71,60,0.25);
+    --match:#3E8577;
+    --match-glow:rgba(62,133,119,0.25);
+    --hair:rgba(242,236,221,0.14);
+    --hair-bright:rgba(242,236,221,0.28);
+    --connector:#93A6BC;
+    --code-bad-text:#EEC6C1;
+    --code-ok-text:#BEE2D8;
+    --diff-note-bg:rgba(242,236,221,0.06);
+    --diff-bad-bg:rgba(193,71,60,0.14);
+    --diff-ok-bg:rgba(62,133,119,0.14);
+    --nav-bg:rgba(21,36,57,0.85);
+    --slide-shadow:0 60px 120px -30px rgba(0,0,0,0.65), 0 0 0 1px rgba(242,236,221,0.06);
+    --stage-glow-1:rgba(62,133,119,0.08);
+    --stage-glow-2:rgba(193,71,60,0.08);
+    --dot-ring:rgba(193,71,60,0.18);
+    --dot-ring-pulse:rgba(193,71,60,0.28);
+
+    --font-display:'Fraunces','Iowan Old Style','Palatino Linotype',serif;
+    --font-body:'IBM Plex Sans','Segoe UI',Helvetica,Arial,sans-serif;
+    --font-mono:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;
+  }
+
+  [data-theme="light"]{
+    --ink:#EAE3D2;
+    --ink-2:#DED5BF;
+    --ink-3:#D2C9B3;
+    --paper:#0D1826;
+    --paper-dim:#2A3B52;
+    --text:#1A2A3A;
+    --text-muted:#6B7F96;
+    --flag:#B53A2E;
+    --flag-dim:#C89890;
+    --flag-glow:rgba(181,58,46,0.18);
+    --match:#2E6B5D;
+    --match-glow:rgba(46,107,93,0.18);
+    --hair:rgba(13,24,38,0.12);
+    --hair-bright:rgba(13,24,38,0.24);
+    --connector:#7A8FA6;
+    --code-bad-text:#A03028;
+    --code-ok-text:#2E6B5D;
+    --diff-note-bg:rgba(13,24,38,0.05);
+    --diff-bad-bg:rgba(181,58,46,0.10);
+    --diff-ok-bg:rgba(46,107,93,0.10);
+    --nav-bg:rgba(222,213,191,0.85);
+    --slide-shadow:0 60px 120px -30px rgba(0,0,0,0.2), 0 0 0 1px rgba(13,24,38,0.08);
+    --stage-glow-1:rgba(46,107,93,0.06);
+    --stage-glow-2:rgba(181,58,46,0.06);
+    --dot-ring:rgba(181,58,46,0.18);
+    --dot-ring-pulse:rgba(181,58,46,0.28);
+  }
+
+  *{box-sizing:border-box; transition:background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease; }
+
+  html,body{
+    margin:0; padding:0;
+    background:var(--ink); color:var(--text);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+  }
+
+  .stage{
+    min-height:100vh; width:100%;
+    display:flex; align-items:center; justify-content:center;
+    background:
+      radial-gradient(circle at 15% 8%, var(--stage-glow-1), transparent 40%),
+      radial-gradient(circle at 88% 92%, var(--stage-glow-2), transparent 42%),
+      var(--ink);
+    padding:3vh 3vw;
+  }
+
+  .slide{
+    position:relative; width:100%; max-width:1680px;
+    aspect-ratio:16/9;
+    background:var(--ink);
+    border-radius:6px; overflow:hidden;
+    box-shadow:var(--slide-shadow);
+    container-type:inline-size;
+    display:flex; flex-direction:column;
+    padding:4.6cqw 4.6cqw 3.4cqw;
+  }
+
+  /* notebook ruled lines */
+  .slide::before{
+    content:""; position:absolute; inset:0;
+    background-image:repeating-linear-gradient(
+      to bottom, transparent, transparent calc(100% / 34 - 1px),
+      var(--hair) calc(100% / 34 - 1px), var(--hair) calc(100% / 34));
+    opacity:0.35; pointer-events:none;
+  }
+
+  /* top accent rule */
+  .slide::after{
+    content:""; position:absolute; top:0; left:0; right:0; height:2px;
+    background:linear-gradient(90deg, var(--flag) 0%, var(--flag) 18%, transparent 18%, transparent 82%, var(--match) 82%, var(--match) 100%);
+    opacity:0.7;
+    animation:accentSlide 1.2s cubic-bezier(0.16,1,0.3,1) both;
+    transform-origin:left;
+  }
+  @keyframes accentSlide{
+    from{ transform:scaleX(0); }
+    to{ transform:scaleX(1); }
+  }
+
+  /* ---------- HEADER ---------- */
+  .row-header{
+    position:relative; z-index:3;
+    display:flex; align-items:baseline; justify-content:space-between;
+    padding-bottom:1.6cqw; border-bottom:1px solid var(--hair);
+    margin-bottom:2.2cqw; flex-shrink:0;
+  }
+  .wordmark{
+    font-family:var(--font-mono); font-size:1.3cqw; font-weight:600;
+    letter-spacing:0.02em; color:var(--text);
+    display:flex; align-items:center; gap:0.55cqw;
+  }
+  .wordmark .dot{
+    width:0.5cqw; height:0.5cqw; min-width:6px; min-height:6px;
+    border-radius:50%; background:var(--flag);
+    box-shadow:0 0 0 3px var(--dot-ring);
+    animation:dotPulse 2.4s ease-in-out infinite;
+  }
+  @keyframes dotPulse{
+    0%,100%{ box-shadow:0 0 0 3px var(--dot-ring); }
+    50%{ box-shadow:0 0 0 5px var(--dot-ring-pulse), 0 0 12px var(--flag-glow); }
+  }
+
+  .header-right{ display:flex; align-items:center; gap:1cqw; }
+  .provenance{
+    font-family:var(--font-mono); font-size:0.95cqw;
+    color:var(--text-muted); text-align:right; line-height:1.5;
+  }
+  .pager{ display:flex; gap:0.55cqw; }
+  .pager button{
+    appearance:none; border:none; padding:0;
+    width:0.55cqw; height:0.55cqw; min-width:7px; min-height:7px;
+    border-radius:50%; background:var(--hair);
+    cursor:pointer; transition:all 0.2s ease;
+  }
+  .pager button:hover{ background:var(--paper-dim); }
+  .pager button.active{ background:var(--paper); transform:scale(1.15); }
+  .pager button:focus-visible{ outline:2px solid var(--match); outline-offset:2px; }
+
+  /* ---------- THEME TOGGLE ---------- */
+  .theme-toggle{
+    appearance:none; border:1px solid var(--hair); border-radius:100px;
+    width:3.6cqw; min-width:44px; height:1.7cqw; min-height:22px;
+    background:var(--ink-2); cursor:pointer; position:relative;
+    display:flex; align-items:center; padding:0 0.3cqw;
+    transition:background 0.3s ease, border-color 0.3s ease;
+  }
+  .theme-toggle:hover{ border-color:var(--hair-bright); }
+  .theme-toggle .toggle-knob{
+    width:1.1cqw; min-width:14px; height:1.1cqw; min-height:14px;
+    border-radius:50%; background:var(--paper);
+    display:flex; align-items:center; justify-content:center;
+    transition:transform 0.3s cubic-bezier(0.16,1,0.3,1), background 0.3s ease;
+    flex-shrink:0;
+  }
+  [data-theme="light"] .theme-toggle .toggle-knob{ transform:translateX(1.8cqw); }
+  .theme-toggle .toggle-knob svg{ width:0.75cqw; min-width:9px; height:0.75cqw; min-height:9px; color:var(--ink); }
+  .theme-toggle .toggle-icon-moon{ display:block; }
+  .theme-toggle .toggle-icon-sun{ display:none; }
+  [data-theme="light"] .theme-toggle .toggle-icon-moon{ display:none; }
+  [data-theme="light"] .theme-toggle .toggle-icon-sun{ display:block; }
+  .theme-toggle:focus-visible{ outline:2px solid var(--match); outline-offset:2px; }
+
+  /* ---------- NAV ARROWS ---------- */
+  .nav-arrow{
+    position:absolute; top:50%; transform:translateY(-50%); z-index:4;
+    width:2.6cqw; height:2.6cqw; min-width:32px; min-height:32px;
+    border-radius:50%;
+    background:var(--nav-bg); border:1px solid var(--hair);
+    color:var(--text-muted);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; transition:all 0.2s ease;
+  }
+  .nav-arrow:hover{ background:var(--ink-3); color:var(--text); border-color:var(--hair-bright); }
+  .nav-arrow:focus-visible{ outline:2px solid var(--match); outline-offset:2px; }
+  .nav-arrow.prev{ left:1.2cqw; }
+  .nav-arrow.next{ right:1.2cqw; }
+  .nav-arrow[disabled]{ opacity:0.25; cursor:default; pointer-events:none; }
+  .nav-arrow svg{ width:0.95cqw; height:0.95cqw; min-width:11px; min-height:11px; }
+
+  /* ---------- PANELS ---------- */
+  .panels{ position:relative; flex:1; min-height:0; }
+  .panel{ display:none; flex-direction:column; height:100%; }
+  .panel.active{ display:flex; animation:panelIn 0.6s cubic-bezier(0.16,1,0.3,1) both; }
+  @keyframes panelIn{
+    from{ opacity:0; transform:translateY(12px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+
+  /* ===== ENTRANCE ANIMS ===== */
+  .anim{ opacity:0; animation:fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) both; }
+  .anim-d1{ animation-delay:0.08s; }
+  .anim-d2{ animation-delay:0.16s; }
+  .anim-d3{ animation-delay:0.24s; }
+  .anim-d4{ animation-delay:0.32s; }
+  .anim-d5{ animation-delay:0.40s; }
+  .anim-d6{ animation-delay:0.48s; }
+  .anim-d7{ animation-delay:0.56s; }
+  @keyframes fadeUp{
+    from{ opacity:0; transform:translateY(18px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+
+  /* ===== PANEL 0 — cover ===== */
+  .row-hero{
+    position:relative; z-index:2;
+    display:flex; align-items:flex-end; gap:3cqw;
+    padding-bottom:2.6cqw; margin-bottom:2.6cqw;
+  }
+  .hero-text{ flex:1; }
+  .p0-h1{
+    margin:0; font-family:var(--font-display);
+    font-weight:500; font-size:6cqw; line-height:1.05;
+    letter-spacing:-0.01em; color:var(--text); max-width:15ch;
+  }
+  .p0-h1 .accent-word{
+    color:var(--flag); font-style:italic;
+    position:relative;
+  }
+  .hero-sub{
+    margin:1.1cqw 0 0; font-size:1.5cqw;
+    line-height:1.5; color:var(--text-muted); max-width:44ch;
+  }
+
+  /* diff token */
+  .diff-token{
+    flex-shrink:0; width:19cqw;
+    font-family:var(--font-mono); font-size:1.05cqw;
+  }
+  .diff-line{
+    display:flex; align-items:center; gap:0.6cqw;
+    padding:0.55cqw 0.75cqw; border-radius:3px;
+    margin-bottom:0.45cqw;
+    position:relative; overflow:hidden;
+  }
+  .diff-line.note{ background:var(--diff-note-bg); color:var(--text-muted); }
+  .diff-line.code-bad{ background:var(--diff-bad-bg); color:var(--code-bad-text); }
+  .diff-line.code-ok{ background:var(--diff-ok-bg); color:var(--code-ok-text); }
+
+  .diff-line.code-bad::after{
+    content:""; position:absolute; left:0; bottom:0; height:100%; width:100%;
+    background:var(--diff-bad-bg);
+    animation:flagFlash 3.5s ease-in-out infinite;
+    pointer-events:none;
+  }
+  @keyframes flagFlash{
+    0%,70%,100%{ opacity:0; }
+    75%,90%{ opacity:0.5; }
+  }
+
+  .diff-mark{ font-size:0.9em; flex-shrink:0; }
+  .diff-cursor{
+    display:inline-block; width:0.5cqw; height:1.1em;
+    background:var(--text); margin-left:0.3cqw;
+    animation:blink 1.1s steps(2) infinite;
+    vertical-align:middle;
+  }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  /* row mid */
+  .row-mid{
+    position:relative; z-index:2;
+    display:flex; gap:3.6cqw;
+    padding-bottom:2.6cqw; margin-bottom:2.2cqw;
+    border-bottom:1px solid var(--hair);
+  }
+  .panel-label{
+    font-family:var(--font-mono); font-size:1cqw;
+    color:var(--text-muted); margin:0 0 1.2cqw;
+  }
+  .scale-panel{ width:40%; }
+  .stat{
+    display:flex; align-items:baseline; gap:0.8cqw;
+    padding:1.1cqw 0; border-top:1px solid var(--hair);
+  }
+  .stat:first-of-type{ border-top:none; }
+  .stat-num{
+    font-family:var(--font-mono); font-weight:600;
+    font-size:3.5cqw; color:var(--text); white-space:nowrap;
+  }
+  .stat-label{ font-size:1.25cqw; color:var(--text-muted); line-height:1.35; }
+
+  .fronts-panel{ flex:1; }
+  .fronts-diagram{ display:flex; align-items:stretch; gap:1.4cqw; }
+  .front-card{
+    flex:1; background:var(--ink-2); border:1px solid var(--hair);
+    border-radius:4px; padding:1.3cqw 1.5cqw;
+    transition:border-color 0.25s ease, background 0.25s ease;
+    position:relative;
+  }
+  .front-card:hover{ border-color:var(--hair-bright); background:var(--ink-3); }
+  .front-tag{ font-family:var(--font-mono); font-size:0.88cqw; color:var(--text-muted); margin-bottom:0.55cqw; }
+  .front-title{ font-family:var(--font-display); font-size:1.8cqw; font-weight:500; margin:0 0 0.55cqw; color:var(--text); }
+  .front-desc{ font-size:1.15cqw; line-height:1.5; color:var(--text-muted); margin:0; }
+  .front-desc b{ color:var(--text); font-weight:500; }
+
+  .fronts-connector{ flex:0 0 auto; width:3.4cqw; display:flex; align-items:center; justify-content:center; position:relative; color:var(--connector); }
+  .fronts-connector svg{ width:100%; height:auto; overflow:visible; }
+  .fronts-connector .arrow-anim{ stroke-dasharray:40; stroke-dashoffset:40; animation:arrowDash 1.5s ease-out 0.4s forwards; }
+  .fronts-connector .arrow-anim-2{ stroke-dasharray:40; stroke-dashoffset:40; animation:arrowDash 1.5s ease-out 0.7s forwards; }
+  @keyframes arrowDash{ to{ stroke-dashoffset:0; } }
+
+  /* patterns */
+  .row-patterns{ position:relative; z-index:2; margin-bottom:2.2cqw; }
+  .patterns-list{ display:flex; gap:0; }
+  .pattern{
+    flex:1; padding:0 1.1cqw 0 0; margin-right:1.1cqw;
+    border-right:1px solid var(--hair);
+    transition:opacity 0.25s ease;
+  }
+  .pattern:last-child{ border-right:none; margin-right:0; padding-right:0; }
+  .pattern-flag{
+    display:inline-flex; align-items:center; gap:0.4cqw;
+    font-family:var(--font-mono); font-size:0.85cqw;
+    color:var(--flag); margin-bottom:0.6cqw;
+  }
+  .pattern-flag svg{ width:0.85cqw; height:0.85cqw; min-width:9px; min-height:9px; }
+  .pattern-name{ font-family:var(--font-display); font-size:1.5cqw; font-weight:500; color:var(--text); margin:0 0 0.4cqw; }
+  .pattern-desc{ font-size:1.05cqw; line-height:1.45; color:var(--text-muted); margin:0; }
+
+  .patterns-list:hover .pattern{ opacity:0.4; }
+  .patterns-list .pattern:hover{ opacity:1; }
+  .pattern:hover .pattern-flag{ color:var(--flag); }
+  .pattern:hover .pattern-flag svg{ filter:drop-shadow(0 0 4px var(--flag-glow)); }
+
+  /* footer */
+  .panel0 .row-footer{ margin-top:auto; }
+  .fail-list{ display:flex; flex-direction:column; gap:0.5cqw; font-size:1.2cqw; color:var(--text-muted); max-width:34ch; }
+  .fail-list span{ color:var(--text); }
+
+  .closer{ text-align:right; flex-shrink:0; }
+  .closer .strike{
+    display:block; font-family:var(--font-body); font-size:1.25cqw;
+    color:var(--text-muted);
+    text-decoration:line-through; text-decoration-color:var(--flag-dim);
+    margin-bottom:0.35cqw;
+  }
+  .panel0 .closer .answer{ font-size:2.8cqw; }
+  .closer .answer{
+    display:block; font-family:var(--font-display); font-style:italic;
+    font-weight:500; color:var(--text); line-height:1.15;
+  }
+  .closer .answer::after{
+    content:""; display:block; margin-top:0.6cqw;
+    width:0; height:2px;
+    background:linear-gradient(90deg, var(--match), transparent);
+    animation:answerLine 0.8s ease-out 0.6s forwards;
+  }
+  @keyframes answerLine{ to{ width:100%; } }
+
+  /* ===== PANEL 1 — drill-down ===== */
+  .row-title{ position:relative; z-index:2; padding-bottom:2cqw; margin-bottom:1.8cqw; }
+  .p1-h1{
+    margin:0; font-family:var(--font-display); font-weight:500;
+    font-size:4cqw; line-height:1.08; letter-spacing:-0.01em; color:var(--text);
+  }
+  .title-sub{ margin:0.9cqw 0 0; font-size:1.35cqw; line-height:1.5; color:var(--text-muted); max-width:64ch; }
+
+  .ledger-wrap{ position:relative; z-index:2; flex:1; min-height:0; overflow:hidden; }
+  .ledger{ display:grid; grid-template-columns:18% 40% 42%; width:100%; align-content:start; }
+  .lh{
+    font-family:var(--font-mono); font-size:0.95cqw; color:var(--text-muted);
+    padding-bottom:0.6cqw; border-bottom:1px solid var(--paper-dim);
+  }
+  .lc{
+    padding:0.7cqw 1.4cqw 0.7cqw 0; border-bottom:1px solid var(--hair);
+    font-size:1.1cqw; line-height:1.35; color:var(--text-muted);
+    display:flex; align-items:center;
+  }
+  .ledger > div:nth-last-child(-n+3){ border-bottom:none; }
+  .pattern-cell{
+    display:flex; align-items:center; gap:0.7cqw;
+    font-family:var(--font-display); font-size:1.5cqw; font-weight:500; color:var(--text);
+  }
+  .pattern-cell svg{ width:1cqw; height:1cqw; min-width:12px; min-height:12px; color:var(--flag); flex-shrink:0; }
+  .example-cell{ display:flex; flex-direction:column; gap:0.35cqw; font-family:var(--font-mono); font-size:0.95cqw; }
+  .ex-note{ color:var(--text-muted); }
+  .ex-flag{
+    display:inline-flex; align-items:center; gap:0.4cqw; color:var(--code-bad-text);
+    background:var(--diff-bad-bg); border-radius:3px;
+    padding:0.35cqw 0.6cqw; width:fit-content;
+    position:relative;
+  }
+  .ex-flag::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:2px;
+    background:var(--flag); border-radius:3px 0 0 3px;
+  }
+
+  .panel1 .row-footer{
+    margin-top:2cqw; padding-top:1.8cqw;
+    border-top:1px solid var(--hair); flex-shrink:0;
+  }
+  .footer-note{ font-size:1.15cqw; color:var(--text-muted); max-width:52ch; line-height:1.5; }
+  .footer-note b{ color:var(--text); font-weight:500; }
+  .panel1 .closer .answer{ font-size:1.9cqw; }
+
+  /* shared footer row */
+  .row-footer{ position:relative; z-index:2; display:flex; align-items:flex-end; justify-content:space-between; gap:3cqw; }
+
+  /* ===== PANEL 2 — market & value ===== */
+  .market-grid{
+    position:relative; z-index:2; flex:1; min-height:0;
+    overflow:hidden;
+    display:flex; flex-direction:column; justify-content:space-between;
+  }
+  .market-row{
+    display:flex; align-items:flex-start; gap:2.4cqw;
+    padding:0.85cqw 0; border-bottom:1px solid var(--hair);
+  }
+  .market-row:last-child{ border-bottom:none; }
+  .market-label{
+    width:21%; flex-shrink:0;
+    font-family:var(--font-display); font-weight:600;
+    font-size:1.35cqw; line-height:1.2; color:var(--text);
+    padding-top:0.1cqw;
+  }
+  .market-answer{ flex:1; font-size:1.0cqw; line-height:1.42; color:var(--text); margin:0; }
+  .market-answer b{ font-weight:600; }
+  .market-tags{ display:flex; gap:0.6cqw; margin-top:0.5cqw; flex-wrap:wrap; }
+  .market-tag{
+    font-family:var(--font-mono); font-size:0.76cqw;
+    color:var(--text-muted); background:var(--ink-2);
+    border:1px solid var(--hair); padding:0.3cqw 0.7cqw; border-radius:3px;
+  }
+  .panel2 .row-footer{ margin-top:1.2cqw; padding-top:1.2cqw; border-top:1px solid var(--hair); flex-shrink:0; }
+  .panel2 .closer .answer{ font-size:1.5cqw; }
+
+  /* ===== PANEL 3 — learnings & Corti models ===== */
+  .row-learn{
+    position:relative; z-index:2; flex:1; min-height:0;
+    display:flex; gap:4cqw; overflow:hidden;
+  }
+  .learn-col{ flex:1; display:flex; flex-direction:column; min-width:0; }
+  .timeline{ display:flex; flex-direction:column; gap:1.5cqw; }
+  .timeline-item{ display:flex; gap:1cqw; align-items:flex-start; }
+  .timeline-num{
+    flex-shrink:0; width:2cqw; height:2cqw; min-width:24px; min-height:24px;
+    border-radius:50%; border:1px solid var(--hair);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-mono); font-size:1cqw; color:var(--text-muted);
+    margin-top:0.1cqw;
+  }
+  .timeline-text{ font-size:1.4cqw; line-height:1.5; color:var(--text-muted); margin:0; padding-top:0.15cqw; }
+  .timeline-text b{ font-family:var(--font-display); font-weight:600; color:var(--text); font-style:normal; }
+  .corti-list{ display:flex; flex-direction:column; }
+  .corti-item{ padding:1.1cqw 0; border-bottom:1px solid var(--hair); }
+  .corti-item:last-child{ border-bottom:none; }
+  .corti-item b{
+    font-family:var(--font-display); font-size:1.6cqw; font-weight:500;
+    color:var(--text); display:block; margin-bottom:0.35cqw;
+  }
+  .corti-item span{ font-size:1.3cqw; line-height:1.45; color:var(--text-muted); }
+  .panel3 .row-footer{ margin-top:1.2cqw; padding-top:1.2cqw; border-top:1px solid var(--hair); flex-shrink:0; }
+  .panel3 .closer .answer{ font-size:1.9cqw; }
+  .panel3 .closer .strike{ font-size:1.2cqw; }
+  .panel3 .panel-label{ font-size:1.1cqw; }
+  .panel3 .footer-note{ font-size:1.15cqw; }
+
+  @media (max-width:720px){
+    .stage{ padding:0; }
+    .slide{ aspect-ratio:auto; min-height:100vh; border-radius:0; padding:7cqw 6cqw 6cqw; }
+    .wordmark{ font-size:3cqw; }
+    .provenance{ font-size:2.2cqw; }
+    .nav-arrow{ width:9vw; height:9vw; font-size:4vw; }
+
+    .row-hero{ flex-direction:column; align-items:flex-start; gap:5cqw; }
+    .diff-token{ width:100%; font-size:2.6cqw; }
+    .p0-h1{ font-size:8.5cqw; max-width:100%; }
+    .hero-sub{ font-size:3.1cqw; }
+    .row-mid{ flex-direction:column; gap:6cqw; }
+    .scale-panel{ width:100%; }
+    .stat-num{ font-size:5cqw; }
+    .stat-label{ font-size:2.6cqw; }
+    .fronts-diagram{ flex-direction:column; }
+    .fronts-connector{ width:100%; height:5cqw; transform:rotate(90deg); margin:1cqw 0; }
+    .front-title{ font-size:3.6cqw; }
+    .front-desc{ font-size:2.6cqw; }
+    .patterns-list{ flex-wrap:wrap; row-gap:5cqw; }
+    .pattern{ flex:0 0 46%; border-right:none !important; margin-right:0 !important; }
+    .pattern-name{ font-size:3.2cqw; }
+    .pattern-desc{ font-size:2.4cqw; }
+    .panel0 .closer .answer{ font-size:5.5cqw; }
+    .closer .strike{ font-size:2.6cqw; }
+
+    .p1-h1{ font-size:6.5cqw; }
+    .title-sub{ font-size:3cqw; }
+    .ledger{ grid-template-columns:1fr; }
+    .lh{ display:none; }
+    .pattern-cell{ font-size:4cqw; padding-top:2.5cqw; }
+    .lc{ padding:0.9cqw 0; border-bottom:none; font-size:2.8cqw; }
+    .ledger > div{ border-bottom:1px solid var(--hair) !important; padding-bottom:1.8cqw; margin-bottom:0.6cqw; }
+    .signal-cell{ font-size:2.5cqw; }
+    .example-cell{ font-size:2.5cqw; }
+    .footer-note{ font-size:2.8cqw; max-width:100%; }
+    .panel1 .closer .answer{ font-size:4.2cqw; }
+
+    .market-row{ flex-direction:column; gap:1cqw; padding:2cqw 0; }
+    .market-label{ width:100%; font-size:4.4cqw; font-weight:600; }
+    .market-answer{ font-size:2.7cqw; }
+    .market-tag{ font-size:2.3cqw; padding:1cqw 1.8cqw; }
+    .panel2 .closer .answer{ font-size:4.2cqw; }
+
+    .row-learn{ flex-direction:column; gap:3cqw; }
+    .timeline-num{ font-size:2.6cqw; }
+    .timeline-text{ font-size:2.7cqw; }
+    .corti-item b{ font-size:3.4cqw; }
+    .corti-item span{ font-size:2.6cqw; }
+    .panel3 .closer .answer{ font-size:4.2cqw; }
+    .panel3 .closer .strike{ font-size:2.6cqw; }
+
+    .row-footer{ flex-direction:column; align-items:flex-start; gap:3cqw; }
+    .closer{ text-align:left; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="slide">
+
+    <div class="row-header">
+      <div class="wordmark"><span class="dot"></span>FraudLens</div>
+      <div class="header-right">
+        <div class="provenance" id="provenance">AI-powered healthcare fraud detection<br>Corti Hack for Health</div>
+        <div class="pager" id="pager">
+          <button type="button" data-idx="0" class="active" aria-label="Slide 1"></button>
+          <button type="button" data-idx="1" aria-label="Slide 2"></button>
+          <button type="button" data-idx="2" aria-label="Slide 3"></button>
+          <button type="button" data-idx="3" aria-label="Slide 4"></button>
+        </div>
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle light mode" title="Toggle light mode">
+          <span class="toggle-knob">
+            <svg class="toggle-icon-moon" viewBox="0 0 16 16" fill="none"><path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+            <svg class="toggle-icon-sun" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M12.5 3.5l-1.4 1.4M4.9 11.1l-1.4 1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </span>
+        </button>
+      </div>
+    </div>
+
+    <button class="nav-arrow prev" id="prevBtn" aria-label="Previous slide" disabled>
+      <svg viewBox="0 0 24 24" fill="none"><path d="M15 5 L8 12 L15 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="nav-arrow next" id="nextBtn" aria-label="Next slide">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M9 5 L16 12 L9 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+
+    <div class="panels">
+
+      <!-- ===== PANEL 0 — cover ===== -->
+      <section class="panel panel0 active" data-panel="0">
+
+        <div class="row-hero">
+          <div class="hero-text anim anim-d1">
+            <h1 class="p0-h1">Does the code<br>match the <span class="accent-word">note</span>?</h1>
+            <p class="hero-sub">Every dollar of healthcare fraud starts with a mismatch — a code billed for something the clinical note doesn't support. FraudLens reads the note.</p>
+          </div>
+          <div class="diff-token anim anim-d2">
+            <div class="diff-line note"><span class="diff-mark">＝</span> Note: 15-min follow-up, stable</div>
+            <div class="diff-line code-bad"><span class="diff-mark">✕</span> Code: 99215, high complexity</div>
+            <div class="diff-line code-ok"><span class="diff-mark">✓</span> Code: 99213, confirmed<span class="diff-cursor"></span></div>
+          </div>
+        </div>
+
+        <div class="row-mid anim anim-d3">
+          <div class="scale-panel">
+            <p class="panel-label">The scale of the problem</p>
+            <div class="stat">
+              <div class="stat-num">$68–230B</div>
+              <div class="stat-label">lost to healthcare fraud every year, per the NHCAA</div>
+            </div>
+            <div class="stat">
+              <div class="stat-num">1B+</div>
+              <div class="stat-label">claims processed annually by CMS alone</div>
+            </div>
+            <div class="stat">
+              <div class="stat-num">&lt;5%</div>
+              <div class="stat-label">reviewed by a human before payment goes out</div>
+            </div>
+          </div>
+
+          <div class="fronts-panel">
+            <p class="panel-label">Two fronts, one question</p>
+            <div class="fronts-diagram">
+              <div class="front-card">
+                <div class="front-tag">Outbound — hospital / provider</div>
+                <div class="front-title">Wrong codes leave the door</div>
+                <p class="front-desc">Catch errors <b>before submission</b>, hold the line on compliance, and cut clawback risk before a claim ever ships.</p>
+              </div>
+              <div class="fronts-connector">
+                <svg viewBox="0 0 40 100" preserveAspectRatio="none">
+                  <path class="arrow-anim" d="M2 20 H38 M30 12 L38 20 L30 28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>
+                  <path class="arrow-anim-2" d="M38 80 H2 M10 72 L2 80 L10 88" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>
+                </svg>
+              </div>
+              <div class="front-card">
+                <div class="front-tag">Inbound — insurer / payer</div>
+                <div class="front-title">Millions of claims arrive</div>
+                <p class="front-desc"><b>Triage at scale</b>, prioritize the highest-risk claims, and surface sustained abuse through provider-pattern dashboards.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row-patterns anim anim-d4">
+          <p class="panel-label">Five fraud patterns FraudLens is built to catch</p>
+          <div class="patterns-list">
+            <div class="pattern">
+              <div class="pattern-flag"><svg viewBox="0 0 16 16" fill="none"><path d="M3 1v14M3 2h9l-2 3 2 3H3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Upcoding</div>
+              <p class="pattern-name">Fee-for-service uplift</p>
+              <p class="pattern-desc">Billing a higher-tier code than the clinical note actually supports.</p>
+            </div>
+            <div class="pattern">
+              <div class="pattern-flag"><svg viewBox="0 0 16 16" fill="none"><path d="M3 1v14M3 2h9l-2 3 2 3H3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Unbundling</div>
+              <p class="pattern-name">NCCI edit bypass</p>
+              <p class="pattern-desc">Billing components separately that should have been bundled together.</p>
+            </div>
+            <div class="pattern">
+              <div class="pattern-flag"><svg viewBox="0 0 16 16" fill="none"><path d="M3 1v14M3 2h9l-2 3 2 3H3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Phantom billing</div>
+              <p class="pattern-name">No documentation</p>
+              <p class="pattern-desc">Services billed for care that was never actually rendered.</p>
+            </div>
+            <div class="pattern">
+              <div class="pattern-flag"><svg viewBox="0 0 16 16" fill="none"><path d="M3 1v14M3 2h9l-2 3 2 3H3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Diagnosis inflation</div>
+              <p class="pattern-name">HCC risk-score bump</p>
+              <p class="pattern-desc">Severity diagnoses the chart itself doesn't support.</p>
+            </div>
+            <div class="pattern">
+              <div class="pattern-flag"><svg viewBox="0 0 16 16" fill="none"><path d="M3 1v14M3 2h9l-2 3 2 3H3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Cloning</div>
+              <p class="pattern-name">Boilerplate copy-paste</p>
+              <p class="pattern-desc">Identical notes reused across encounters, or even across patients.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="row-footer anim anim-d5">
+          <div class="fail-list">
+            <div><span>Rule engines</span> miss novel patterns. Manual review is slow.</div>
+            <div>Coding <span>errors</span> look like fraud without clinical context.</div>
+          </div>
+          <div class="closer">
+            <span class="strike">Nobody reads the note.</span>
+            <span class="answer">FraudLens does.</span>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ===== PANEL 1 — drill-down ===== -->
+      <section class="panel panel1" data-panel="1">
+
+        <div class="row-title anim anim-d1">
+          <h1 class="p1-h1">Four patterns, four signatures</h1>
+          <p class="title-sub">Each pattern leaves a different fingerprint. FraudLens reads for the gap — where documentation and billing stop agreeing.</p>
+        </div>
+
+        <div class="ledger-wrap anim anim-d2">
+          <div class="ledger">
+            <div class="lh">Pattern</div>
+            <div class="lh">What it is</div>
+            <div class="lh">Example flag</div>
+
+            <div class="lc pattern-cell"><svg viewBox="0 0 16 16" fill="none"><path d="M3 1v14M3 2h9l-2 3 2 3H3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Upcoding</div>
+            <div class="lc">Billing a higher-tier code than the note supports.</div>
+            <div class="lc example-cell">
+              <span class="ex-note">Note: 15-min stable follow-up</span>
+              <span class="ex-flag">Code 99215 flagged — supports 99213</span>
+            </div>
+
+            <div class="lc pattern-cell"><svg viewBox="0 0 16 16" fill="none"><path d="M3 1v14M3 2h9l-2 3 2 3H3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Unbundling</div>
+            <div class="lc">Billing components separately that should be bundled.</div>
+            <div class="lc example-cell">
+              <span class="ex-note">Note: single excision, one site</span>
+              <span class="ex-flag">3 line items flagged — should bundle to 1</span>
+            </div>
+
+            <div class="lc pattern-cell"><svg viewBox="0 0 16 16" fill="none"><path d="M3 1v14M3 2h9l-2 3 2 3H3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Phantom billing</div>
+            <div class="lc">Services billed but never rendered — no documentation.</div>
+            <div class="lc example-cell">
+              <span class="ex-note">Claim: 30-min therapy session</span>
+              <span class="ex-flag">No matching chart note found</span>
+            </div>
+
+            <div class="lc pattern-cell"><svg viewBox="0 0 16 16" fill="none"><path d="M3 1v14M3 2h9l-2 3 2 3H3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Cloning</div>
+            <div class="lc">Identical notes across encounters or patients.</div>
+            <div class="lc example-cell">
+              <span class="ex-note">Two patients, two dates, one note</span>
+              <span class="ex-flag">98% text match flagged as cloned</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="row-footer anim anim-d3">
+          <p class="footer-note">Rule engines catch <b>known</b> patterns. FraudLens reads the note itself, so it catches the ones nobody wrote a rule for yet.</p>
+          <div class="closer"><span class="answer">Five patterns. One reader.</span></div>
+        </div>
+
+      </section>
+
+      <!-- ===== PANEL 2 — market & value ===== -->
+      <section class="panel panel2" data-panel="2">
+
+        <div class="row-title anim anim-d1">
+          <h1 class="p1-h1">Market &amp; value</h1>
+          <p class="title-sub">Who pays, how we price it, where we start — and why that order.</p>
+        </div>
+
+        <div class="market-grid anim anim-d2">
+          <div class="market-row">
+            <div class="market-label">Value proposition</div>
+            <p class="market-answer">FraudLens turns the clinical note into an audit trail — catching upcoded, unbundled, and unsupported claims <b>before a provider submits</b>, or <b>before a payer pays out</b>. One reader, two customers, one shared question: does the code match the note?</p>
+          </div>
+
+          <div class="market-row">
+            <div class="market-label">How we measure value</div>
+            <p class="market-answer">Priced against the dollars it protects, not seats. Payers pay a share of the overpayment it prevents — the shared-savings model the payment-integrity industry already trusts. Providers pay per encounter checked, priced against the clawback risk it removes.</p>
+            <div class="market-tags">
+              <span class="market-tag">Payers — % of prevented overpayment</span>
+              <span class="market-tag">Providers — per-encounter check fee</span>
+            </div>
+          </div>
+
+          <div class="market-row">
+            <div class="market-label">Geography &amp; language</div>
+            <p class="market-answer">Launching in the Nordics and wider EU, where Corti's clinical-note infrastructure and hospital relationships already run in-language. From there, into the US — the market with the largest fraud exposure and the CPT / HCC coding structure FraudLens is built to read.</p>
+            <div class="market-tags">
+              <span class="market-tag">EU / Nordic — beachhead</span>
+              <span class="market-tag">United States — scale market</span>
+            </div>
+          </div>
+
+          <div class="market-row">
+            <div class="market-label">Why this path</div>
+            <p class="market-answer">Coding standards make the mismatch machine-legible everywhere claims are billed — CPT, ICD-10, HCC, NCCI. Corti already sits inside the documentation layer these customers use daily, and getting paid only when we catch something real shortens the sales cycle in a market that's historically wary of black-box scoring.</p>
+          </div>
+        </div>
+
+        <div class="row-footer anim anim-d3">
+          <p class="footer-note">We only get paid <b>when the flag is real</b> — the same discipline built into how FraudLens reads the note.</p>
+          <div class="closer"><span class="answer">Paid to catch it. Not to promise it.</span></div>
+        </div>
+
+      </section>
+
+      <!-- ===== PANEL 3 — learnings & Corti models ===== -->
+      <section class="panel panel3" data-panel="3">
+
+        <div class="row-title anim anim-d1">
+          <h1 class="p1-h1">Learnings, and what ran on Corti</h1>
+          <p class="title-sub">What the build actually felt like, and where Corti models sat underneath it.</p>
+        </div>
+
+        <div class="row-learn anim anim-d2">
+          <div class="learn-col">
+            <p class="panel-label">Getting started</p>
+            <div class="timeline">
+              <div class="timeline-item">
+                <div class="timeline-num">1</div>
+                <p class="timeline-text"><b>Cold start.</b> opencode, Homebrew — tools I'd never even heard of. I wouldn't have known where to begin without expert support in the room.</p>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-num">2</div>
+                <p class="timeline-text"><b>The unlock.</b> I didn't know I could hand work off to sub-agents and split tasks so they ran in parallel — once I did, things moved a lot faster.</p>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-num">3</div>
+                <p class="timeline-text"><b>It clicked.</b> Once that was in place, the actual build process felt pretty intuitive.</p>
+              </div>
+              <div class="timeline-item">
+                <div class="timeline-num">4</div>
+                <p class="timeline-text"><b>Reality check.</b> Still took more than one prompt — no matter what Lars said.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="learn-col">
+            <p class="panel-label">Built on Corti, top to bottom</p>
+            <div class="corti-list">
+              <div class="corti-item">
+                <b>The whole build</b>
+                <span>Everything in FraudLens runs on Corti models, end to end.</span>
+              </div>
+              <div class="corti-item">
+                <b>Reasoning agent</b>
+                <span>The core note-vs-code judgment call is a Corti model doing the reasoning.</span>
+              </div>
+              <div class="corti-item">
+                <b>Text-gen templates</b>
+                <span>Every flag explanation and claim summary is generated through Corti model templates.</span>
+              </div>
+              <div class="corti-item">
+                <b>Initial research</b>
+                <span>The early research into fraud patterns and coding standards ran on Corti models too.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row-footer anim anim-d3">
+          <p class="footer-note">Reasoning, generation, research — every layer of this build sits on the same model family.</p>
+          <div class="closer">
+            <span class="strike">We didn't know where to start.</span>
+            <span class="answer">Corti got us there.</span>
+          </div>
+        </div>
+
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    var panels = Array.prototype.slice.call(document.querySelectorAll('.panel'));
+    var dots = Array.prototype.slice.call(document.querySelectorAll('.pager button'));
+    var prevBtn = document.getElementById('prevBtn');
+    var nextBtn = document.getElementById('nextBtn');
+    var provenance = document.getElementById('provenance');
+    var texts = [
+      'AI-powered healthcare fraud detection<br>Corti Hack for Health',
+      'Five fraud patterns, closer look',
+      'Market, pricing &amp; go-to-market',
+      'Learnings &amp; use of Corti models'
+    ];
+    var current = 0;
+
+    function show(idx){
+      idx = Math.max(0, Math.min(panels.length - 1, idx));
+      panels.forEach(function(p, i){ p.classList.toggle('active', i === idx); });
+      dots.forEach(function(d, i){ d.classList.toggle('active', i === idx); });
+      provenance.innerHTML = texts[idx];
+      prevBtn.disabled = idx === 0;
+      nextBtn.disabled = idx === panels.length - 1;
+      current = idx;
+    }
+
+    dots.forEach(function(d){
+      d.addEventListener('click', function(){ show(parseInt(d.getAttribute('data-idx'), 10)); });
+    });
+    prevBtn.addEventListener('click', function(){ show(current - 1); });
+    nextBtn.addEventListener('click', function(){ show(current + 1); });
+    document.addEventListener('keydown', function(e){
+      if (e.key === 'ArrowRight') show(current + 1);
+      if (e.key === 'ArrowLeft') show(current - 1);
+    });
+
+    show(0);
+  })();
+
+  (function(){
+    var toggle = document.getElementById('themeToggle');
+    var stored = null;
+    try { stored = localStorage.getItem('fraudlens-theme'); } catch(e){}
+    if (stored === 'light') document.documentElement.setAttribute('data-theme','light');
+    toggle.addEventListener('click', function(){
+      var isLight = document.documentElement.getAttribute('data-theme') === 'light';
+      if (isLight) document.documentElement.removeAttribute('data-theme');
+      else document.documentElement.setAttribute('data-theme','light');
+      try { localStorage.setItem('fraudlens-theme', isLight ? 'dark' : 'light'); } catch(e){}
+    });
+  })();
+</script>
+
+</body>
+</html>
