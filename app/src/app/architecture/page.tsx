@@ -1,6 +1,6 @@
 "use client";
 
-import { Card, CardHeader } from "@/components/ui";
+import { Card } from "@/components/ui";
 import { cn } from "@/lib/utils";
 import {
   FileText,
@@ -36,6 +36,8 @@ interface Stage {
   id: string;
   title: string;
   role: string;
+  /** Phrases within `role` to bold — the load-bearing terms that explain the stage. */
+  highlights?: string[];
   capability: Capability;
   surface: string;
   output: string;
@@ -53,6 +55,7 @@ const STAGES: Stage[] = [
     id: "facts",
     title: "Fact extraction",
     role: "Structure the clinical note into facts (chief complaint, vitals, assessment, plan). Minimizes inputs for scale.",
+    highlights: ["Structure the clinical note into facts", "Minimizes inputs for scale"],
     capability: "textgen",
     surface: "POST /v2/tools/extract-facts",
     output: "Structured clinical facts",
@@ -62,6 +65,7 @@ const STAGES: Stage[] = [
     id: "coding",
     title: "Code prediction",
     role: "Predict the ICD-10/CPT codes the note supports — with candidates and evidences (char offsets).",
+    highlights: ["Predict the ICD-10/CPT codes", "evidences (char offsets)"],
     capability: "coding",
     surface: "POST /v2/tools/coding + coding-expert agent",
     output: "Predicted codes + candidates + evidences",
@@ -71,6 +75,7 @@ const STAGES: Stage[] = [
     id: "compare",
     title: "Set-intersection comparison",
     role: "Compare billed vs predicted. Common = fine. Billed-not-predicted = investigate. Predicted-not-billed = under-billed.",
+    highlights: ["Common = fine", "Billed-not-predicted = investigate", "Predicted-not-billed = under-billed"],
     capability: "deterministic",
     surface: "CodeAnalysis[] (exact | extra | missing)",
     output: "Common / over-billed / under-billed buckets",
@@ -80,6 +85,7 @@ const STAGES: Stage[] = [
     id: "chart-summary",
     title: "Chart summary",
     role: "Summarize prior charts when patient history is provided — grounds the retrace agent's history check (amputation, prior procedures).",
+    highlights: ["patient history is provided", "history check (amputation, prior procedures)"],
     capability: "textgen",
     surface: "POST /v2/documents (Guided Docs, dynamicTemplate)",
     output: "Summarized prior chart",
@@ -89,6 +95,7 @@ const STAGES: Stage[] = [
     id: "retrace",
     title: "Retrace / grounding",
     role: "For each billed-not-predicted code, reason whether it's defensible. Rate agreeability 0–100, grounding, cite note excerpts, flag history contradictions.",
+    highlights: ["reason whether it's defensible", "agreeability 0–100", "cite note excerpts", "flag history contradictions"],
     capability: "agentic",
     surface: "coding-expert agent — A2A message:send",
     output: "Per-code agreeability + grounding + noteExcerpts",
@@ -98,6 +105,7 @@ const STAGES: Stage[] = [
     id: "judgement",
     title: "Judgement / classification",
     role: "Aggregate per-code results into a case verdict: category (upcoding/unbundling/phantom/dx-inflation/cloning) + fraud-vs-error + confidence.",
+    highlights: ["case verdict", "fraud-vs-error"],
     capability: "agentic",
     surface: "coding-expert agent — A2A message:send",
     output: "CaseFinding (category + verdict + confidence)",
@@ -107,6 +115,7 @@ const STAGES: Stage[] = [
     id: "impact",
     title: "Economic impact",
     role: "Deterministic overpayment × frequency × penalty multiplier, persisted as findings.",
+    highlights: ["overpayment × frequency × penalty multiplier"],
     capability: "deterministic",
     surface: "computeEconomicImpact",
     output: "$ projected impact + findings JSON",
@@ -116,6 +125,7 @@ const STAGES: Stage[] = [
     id: "brief",
     title: "Legal brief",
     role: "Draft a multi-section legal brief (FCA §3729, qui-tam, Escobar materiality, hedged disclaimers) — deterministic skeleton + LLM-filled narrative via Guided Docs.",
+    highlights: ["FCA §3729, qui-tam, Escobar materiality", "deterministic skeleton + LLM-filled narrative"],
     capability: "textgen",
     surface: "POST /v2/documents (Guided Docs, legal sections)",
     output: "Legal brief (first-class textgen deliverable)",
@@ -135,8 +145,10 @@ export default function ArchitecturePage() {
       <div>
         <h1 className="text-xl font-bold tracking-tight">System architecture</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">
-          FraudLens runs an honest detect-and-explain pipeline on Corti&apos;s platform — three capabilities
-          (text generation, medical coding, the agentic framework) wired into agents that reason about
+          FraudLens runs an honest <span className="font-semibold text-[var(--foreground)]">detect-and-explain</span> pipeline on Corti&apos;s platform — three capabilities
+          (<span className="font-semibold text-[var(--cap-textgen)]">text generation</span>,{" "}
+          <span className="font-semibold text-[var(--cap-coding)]">medical coding</span>,{" "}
+          <span className="font-semibold text-[var(--cap-agentic)]">the agentic framework</span>) wired into agents that reason about
           every billed code, not a rule-based score.
         </p>
       </div>
@@ -261,6 +273,45 @@ function Node({
   );
 }
 
+/** Render `text` with each phrase in `highlights` bolded. Matches are
+ *  case-sensitive and non-overlapping; the first occurrence of each phrase is
+ *  bolded. Used to draw the eye to the load-bearing terms in a stage's role
+ *  description without changing the readable string. */
+function highlight(text: string, highlights?: string[]): ReactNode {
+  if (!highlights || highlights.length === 0) return text;
+  // Build a list of [phrase, index] for phrases actually present, then split
+  // the string at each match index, longest-first so shorter substrings that
+  // happen to sit inside a longer highlighted phrase don't double-wrap.
+  const matches: { start: number; end: number }[] = [];
+  for (const h of highlights) {
+    const start = text.indexOf(h);
+    if (start >= 0) matches.push({ start, end: start + h.length });
+  }
+  if (matches.length === 0) return text;
+  matches.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+  const out: ReactNode[] = [];
+  let cursor = 0;
+  let i = 0;
+  while (i < matches.length) {
+    const m = matches[i];
+    if (m.start < cursor) {
+      // overlaps an already-emitted span — skip
+      i++;
+      continue;
+    }
+    if (m.start > cursor) out.push(text.slice(cursor, m.start));
+    out.push(
+      <span key={i} className="font-semibold text-[var(--foreground)]">
+        {text.slice(m.start, m.end)}
+      </span>,
+    );
+    cursor = m.end;
+    i++;
+  }
+  if (cursor < text.length) out.push(text.slice(cursor));
+  return out;
+}
+
 function StageCard({ stage }: { stage: Stage }) {
   const meta = CAP_META[stage.capability];
   const Icon = stage.icon;
@@ -283,7 +334,7 @@ function StageCard({ stage }: { stage: Stage }) {
           </p>
         </div>
       </div>
-      <p className="mt-2.5 text-xs leading-snug text-[var(--muted)]">{stage.role}</p>
+      <p className="mt-2.5 text-xs leading-snug text-[var(--muted)]">{highlight(stage.role, stage.highlights)}</p>
       <div className="mt-3 space-y-1.5 border-t border-[var(--border)] pt-2.5">
         <div className="flex items-start gap-1.5">
           <span className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--muted-2)]">surface</span>
